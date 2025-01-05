@@ -66,6 +66,10 @@
 #include "ggml-kompute.h"
 #endif
 
+#ifdef GGML_USE_HTP
+#include "ggml-htp.h"
+#endif
+
 // disable C++17 deprecation warning for std::codecvt_utf8
 #if defined(__clang__)
 #    pragma clang diagnostic push
@@ -182,6 +186,9 @@ struct ggml_backend_registry {
 #endif
 #ifdef GGML_USE_CPU
         register_backend(ggml_backend_cpu_reg());
+#endif
+#ifdef GGML_USE_HTP
+        register_backend(ggml_backend_htp_reg());
 #endif
     }
 
@@ -562,6 +569,7 @@ void ggml_backend_load_all_from_path(const char * dir_path) {
     bool silent = false;
 #endif
 
+    ggml_backend_load_best("htp", false, dir_path);
     ggml_backend_load_best("blas", silent, dir_path);
     ggml_backend_load_best("cann", silent, dir_path);
     ggml_backend_load_best("cuda", silent, dir_path);

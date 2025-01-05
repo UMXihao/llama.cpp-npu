@@ -133,6 +133,8 @@ endif()
 set(GGML_SCHED_MAX_COPIES  "4" CACHE STRING "ggml: max input copies for pipeline parallelism")
 option(GGML_CPU                             "ggml: enable CPU backend"                        ON)
 
+option(GGML_HTP                             "ggml: use My HTP backend"                        ON)
+
 # 3rd party libs / backends
 option(GGML_ACCELERATE                      "ggml: enable Accelerate framework"               ON)
 option(GGML_BLAS                            "ggml: use BLAS"                                  ${GGML_BLAS_DEFAULT})
@@ -233,6 +235,7 @@ include(CMakePackageConfigHelpers)
 set(GGML_PUBLIC_HEADERS
     include/ggml.h
     include/ggml-cpu.h
+    include/ggml-htp.h
     include/ggml-alloc.h
     include/ggml-backend.h
     include/ggml-blas.h
