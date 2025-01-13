@@ -1,7 +1,14 @@
 message(STATUS "Using My Hexagon backend")
 
-set(GGML_SOURCES_HTP ggml-htp.cc)
+set(GGML_SOURCES_HTP 
+    ggml-htp.cc
+    dsprpc_interface.h
+    dsprpc_interface.cc
+)
 
 ggml_add_backend_library(ggml-htp ${GGML_SOURCES_HTP})
 
-# TODO: target_link_libraries(ggml-htp PRIVATE ${HTP_LIBRARIES})
+# FIXME(hzx): why NDK build need this to avoid linking errors?
+if (CMAKE_SYSTEM_NAME MATCHES "Android")
+    target_link_libraries(ggml-htp PRIVATE ggml-cpu)
+endif()

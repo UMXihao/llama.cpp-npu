@@ -1,26 +1,54 @@
 #include "ggml-htp.h"
 
-#include <stdlib.h>
-#include <string.h>
+#include <cstdlib>
+#include <cstring>
+#include <memory>
+#include <mutex>
 
 #include "ggml-backend-impl.h"
 #include "ggml-backend.h"
 #include "ggml-cpu.h"
 
+#include "dsprpc_interface.h"
+
 struct ggml_backend_htp_context {
-    // TODO
+    // rpc interfaces
+
+    ggml_backend_htp_context();
+    ~ggml_backend_htp_context();
 };
 
-// HTP backend buffer type (shared rpcmem)
+// real backend initialization work is done here. ggml_backend_htp_init is only a wrapper
+ggml_backend_htp_context::ggml_backend_htp_context() {
+    printf("Initializing HTP backend... (You should see this once)\n");
 
-// TODO(hzx): real impl
+    rpcmem_init();
+}
+
+ggml_backend_htp_context::~ggml_backend_htp_context() {
+    rpcmem_deinit();
+}
+
+// singleton
+static ggml_backend_htp_context * get_htp_backend_context() {
+    static std::unique_ptr<ggml_backend_htp_context> ctx_ptr;
+    static std::once_flag                            ctx_once_flag;
+
+    std::call_once(ctx_once_flag, [&] {
+        auto * ctx = new ggml_backend_htp_context;
+        ctx_ptr.reset(ctx);
+    });
+    return ctx_ptr.get();
+}
+
+// HTP backend buffer type (shared rpcmem)
 
 static void * ggml_backend_htp_buffer_get_base(ggml_backend_buffer_t buffer) {
     return buffer->context;
 }
 
 static void ggml_backend_htp_buffer_free_buffer(ggml_backend_buffer_t buffer) {
-    free(buffer->context);
+    rpcmem_free(buffer->context);
 }
 
 static void ggml_backend_htp_buffer_memset_tensor(ggml_backend_buffer_t buffer, struct ggml_tensor * tensor,
@@ -78,10 +106,7 @@ static const char * ggml_backend_htp_buffer_type_get_name(ggml_backend_buffer_ty
 }
 
 static ggml_backend_buffer_t ggml_backend_htp_buffer_type_alloc_buffer(ggml_backend_buffer_type_t buft, size_t size) {
-    // TODO(hzx): allocate real rpcmem, use posix_memalign for emulation now
-
-    void * data = nullptr;
-    posix_memalign(&data, 128, size);
+    void * data = rpcmem_alloc(RPCMEM_HEAP_ID_SYSTEM, RPCMEM_FLAG_UNCACHED, size);
     GGML_ASSERT(data);
 
     printf("RPCMEM alloc size = %.5f MiB\n", size / 1024.0 / 1024.0);
@@ -135,8 +160,8 @@ static const char * ggml_backend_htp_get_name(ggml_backend_t backend) {
 }
 
 static void ggml_backend_htp_free(ggml_backend_t backend) {
-    ggml_backend_htp_context * ctx = (ggml_backend_htp_context *) backend->context;
-    delete ctx;
+    // ggml_backend_htp_context * ctx = (ggml_backend_htp_context *) backend->context;
+    // delete ctx;
     delete backend;
 }
 
@@ -149,7 +174,9 @@ static void ggml_backend_htp_mul_mat(ggml_backend_htp_context * ctx, struct ggml
 static enum ggml_status ggml_backend_htp_graph_compute(ggml_backend_t backend, struct ggml_cgraph * cgraph) {
     static ggml_backend_t my_cpu_backend = nullptr;
     if (!my_cpu_backend) {
-        my_cpu_backend = ggml_backend_init_by_type(GGML_BACKEND_DEVICE_TYPE_CPU, nullptr);
+        auto * cpu_dev = ggml_backend_reg_dev_get(ggml_backend_cpu_reg(), 0);
+        // my_cpu_backend = ggml_backend_init_by_type(GGML_BACKEND_DEVICE_TYPE_CPU, nullptr);
+        my_cpu_backend = ggml_backend_dev_init(cpu_dev, nullptr);
         GGML_ASSERT(my_cpu_backend);
     }
 
@@ -181,7 +208,8 @@ static ggml_guid_t ggml_backend_htp_guid(void) {
 }
 
 static ggml_backend_t ggml_backend_htp_init(void) {
-    ggml_backend_htp_context * ctx = new ggml_backend_htp_context;
+    // ggml_backend_htp_context * ctx = new ggml_backend_htp_context;
+    auto * ctx = get_htp_backend_context();
 
     ggml_backend_t backend = new ggml_backend{
         /* .guid      = */ ggml_backend_htp_guid(),
@@ -209,8 +237,7 @@ static const char * ggml_backend_htp_device_get_description(ggml_backend_dev_t d
 }
 
 static void ggml_backend_htp_device_get_memory(ggml_backend_dev_t dev, size_t * free, size_t * total) {
-    // TODO
-    *free = 0;
+    *free  = 0;
     *total = 0;
 
     GGML_UNUSED(dev);
@@ -330,4 +357,7 @@ ggml_backend_reg_t ggml_backend_htp_reg(void) {
     return &ggml_backend_htp_reg;
 }
 
+// NOTE(hzx): GGML_BACKEND_DL is not set defaultly, so this should generate nothing
+// TODO: investigate why NDK build emit warnings but local build do not
+// The warning is something like "load_backend: failed to find ggml_backend_init in ./libggml-htp.so"
 GGML_BACKEND_DL_IMPL(ggml_backend_htp_reg)
