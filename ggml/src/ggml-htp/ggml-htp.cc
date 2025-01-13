@@ -84,7 +84,7 @@ static ggml_backend_buffer_t ggml_backend_htp_buffer_type_alloc_buffer(ggml_back
     posix_memalign(&data, 128, size);
     GGML_ASSERT(data);
 
-    printf("special alloc size = %.5f MiB\n", size / 1024.0 / 1024.0);
+    printf("RPCMEM alloc size = %.5f MiB\n", size / 1024.0 / 1024.0);
 
     return ggml_backend_buffer_init(buft, ggml_backend_htp_buffer_i, data, size);
 }
@@ -147,8 +147,13 @@ static void ggml_backend_htp_mul_mat(ggml_backend_htp_context * ctx, struct ggml
 }
 
 static enum ggml_status ggml_backend_htp_graph_compute(ggml_backend_t backend, struct ggml_cgraph * cgraph) {
-    // TODO
-    return GGML_STATUS_SUCCESS;
+    static ggml_backend_t my_cpu_backend = nullptr;
+    if (!my_cpu_backend) {
+        my_cpu_backend = ggml_backend_init_by_type(GGML_BACKEND_DEVICE_TYPE_CPU, nullptr);
+        GGML_ASSERT(my_cpu_backend);
+    }
+
+    return ggml_backend_graph_compute(my_cpu_backend, cgraph);
 
     GGML_UNUSED(backend);
 }
@@ -164,7 +169,7 @@ static struct ggml_backend_i htp_backend_i = {
     /* .graph_plan_free         = */ nullptr,
     /* .graph_plan_update       = */ nullptr,
     /* .graph_plan_compute      = */ nullptr,
-    /* .graph_compute           = */ nullptr,  //ggml_backend_htp_graph_compute,
+    /* .graph_compute           = */ ggml_backend_htp_graph_compute,
     /* .event_record            = */ nullptr,
     /* .event_wait              = */ nullptr,
 };
@@ -175,7 +180,7 @@ static ggml_guid_t ggml_backend_htp_guid(void) {
     return &guid;
 }
 
-ggml_backend_t ggml_backend_htp_init(void) {
+static ggml_backend_t ggml_backend_htp_init(void) {
     ggml_backend_htp_context * ctx = new ggml_backend_htp_context;
 
     ggml_backend_t backend = new ggml_backend{
@@ -232,7 +237,7 @@ static void ggml_backend_htp_device_get_props(ggml_backend_dev_t dev, struct ggm
 }
 
 static ggml_backend_t ggml_backend_htp_device_init_backend(ggml_backend_dev_t dev, const char * params) {
-    return ggml_backend_cpu_init();
+    return ggml_backend_htp_init();
 
     GGML_UNUSED(dev);
     GGML_UNUSED(params);
@@ -251,6 +256,19 @@ static bool ggml_backend_htp_device_supports_op(ggml_backend_dev_t dev, const st
     GGML_UNUSED(dev);
 }
 
+static bool ggml_backend_htp_device_supports_buft(ggml_backend_dev_t dev, ggml_backend_buffer_type_t buft) {
+    return buft->iface.get_name == ggml_backend_htp_buffer_type_get_name;
+
+    GGML_UNUSED(dev);
+}
+
+static bool ggml_backend_htp_device_offload_op(ggml_backend_dev_t dev, const struct ggml_tensor * op) {
+    auto * cpu_dev = ggml_backend_reg_dev_get(ggml_backend_cpu_reg(), 0);
+    return ggml_backend_dev_supports_op(cpu_dev, op);
+
+    GGML_UNUSED(dev);
+}
+
 static const struct ggml_backend_device_i ggml_backend_htp_device_i = {
     /* .get_name             = */ ggml_backend_htp_device_get_name,
     /* .get_description      = */ ggml_backend_htp_device_get_description,
@@ -262,7 +280,7 @@ static const struct ggml_backend_device_i ggml_backend_htp_device_i = {
     /* .get_host_buffer_type = */ nullptr,
     /* .buffer_from_host_ptr = */ nullptr,
     /* .supports_op          = */ ggml_backend_htp_device_supports_op,
-    /* .supports_buft        = */ nullptr,
+    /* .supports_buft        = */ ggml_backend_htp_device_supports_buft,
     /* .offload_op           = */ nullptr,
     /* .event_new            = */ nullptr,
     /* .event_free           = */ nullptr,

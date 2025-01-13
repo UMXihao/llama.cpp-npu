@@ -3728,8 +3728,15 @@ static bool llama_kv_cache_init(
 
         ggml_backend_buffer_type_t buft;
         if (offload) {
-            auto * dev = model.dev_layer.at(i).dev;
-            buft = ggml_backend_dev_buffer_type(dev);
+            // auto * dev = model.dev_layer.at(i).dev;
+            // LLAMA_LOG("layer %d device: %s\n", i, ggml_backend_dev_name(dev));
+            // buft = ggml_backend_dev_buffer_type(dev);
+
+            // NOTE(hzx): CPU device can have more than one buffer types
+            // ggml_backend_dev_buffer_type([CPU device]) returns the default CPU buffer type
+            // use buffer type from dev_layer.buft_list instead
+            const auto &buft_list = *model.dev_layer.at(i).buft_list;
+            buft = buft_list.at(0).second;
         } else {
             buft = ggml_backend_cpu_buffer_type();
         }
@@ -17658,19 +17665,20 @@ static struct ggml_cgraph * llama_build_graph(
 
         // norm may be automatically assigned to the backend of the previous layer, increasing data transfer between backends
         // FIXME: fix in ggml_backend_sched
-        const bool full_offload = lctx.model.n_gpu_layers > (int)lctx.model.hparams.n_layer;
-        if (ubatch.n_tokens < 32 || full_offload) {
-            if (il != -1 && strcmp(name, "norm") == 0) {
-                const auto & dev_layer = lctx.model.dev_layer.at(il);
-                for (auto & backend : lctx.backends) {
-                    if (ggml_backend_get_device(backend.get()) == dev_layer.dev) {
-                        if (ggml_backend_supports_op(backend.get(), cur)) {
-                            ggml_backend_sched_set_tensor_backend(lctx.sched.get(), cur, backend.get());
-                        }
-                    }
-                }
-            }
-        }
+        // NOTE(hzx): This indeed cause problems when scheduling graph splits for multiple backends. Disable it for now 
+        // const bool full_offload = lctx.model.n_gpu_layers > (int)lctx.model.hparams.n_layer;
+        // if (ubatch.n_tokens < 32 || full_offload) {
+        //     if (il != -1 && strcmp(name, "norm") == 0) {
+        //         const auto & dev_layer = lctx.model.dev_layer.at(il);
+        //         for (auto & backend : lctx.backends) {
+        //             if (ggml_backend_get_device(backend.get()) == dev_layer.dev) {
+        //                 if (ggml_backend_supports_op(backend.get(), cur)) {
+        //                     ggml_backend_sched_set_tensor_backend(lctx.sched.get(), cur, backend.get());
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
     };
 
     struct ggml_cgraph * result = NULL;
@@ -18579,6 +18587,7 @@ static int llama_decode_internal(
         return -2;
     };
 
+    int n_ubatches = 0;
     while (lctx.sbatch.n_tokens > 0) {
         llama_ubatch ubatch;
         if (kv_self.recurrent) {
@@ -18611,6 +18620,10 @@ static int llama_decode_internal(
             // needs to happen before the graph is built
             lctx.n_outputs = n_outputs_new;
         }
+
+        LLAMA_LOG("ubatch id %d, n_tokens: %u, n_seq_tokens: %u, n_seqs: %u, n_outputs: %d\n",
+            n_ubatches, ubatch.n_tokens, ubatch.n_seq_tokens, ubatch.n_seqs, lctx.n_outputs);
+        n_ubatches++;
 
         int n_threads = n_tokens == 1 ? cparams.n_threads : cparams.n_threads_batch;
         ggml_threadpool_t threadpool = n_tokens == 1 ? lctx.threadpool : lctx.threadpool_batch;
@@ -18781,6 +18794,8 @@ static int llama_decode_internal(
         }
         n_outputs_prev += lctx.n_outputs;
     }
+
+    LLAMA_LOG("llama_decode_internal: split into %d ubatches, logical batch.n_tokens = %d\n", n_ubatches, batch.n_tokens);
 
     // set output mappings
     {
