@@ -5,32 +5,28 @@
 #include <memory>
 #include <mutex>
 
+#include "dsprpc_interface.h"
 #include "ggml-backend-impl.h"
 #include "ggml-backend.h"
 #include "ggml-cpu.h"
-
-#include "dsprpc_interface.h"
-
-struct ggml_backend_htp_context {
-    // rpc interfaces
-
-    ggml_backend_htp_context();
-    ~ggml_backend_htp_context();
-};
+#include "ggml-htp-impl.h"
 
 // real backend initialization work is done here. ggml_backend_htp_init is only a wrapper
 ggml_backend_htp_context::ggml_backend_htp_context() {
     printf("Initializing HTP backend... (You should see this once)\n");
 
+    // rpcmem_init & rpcmem_deinit are actually not required on modern Hexagon processors
     rpcmem_init();
 }
 
 ggml_backend_htp_context::~ggml_backend_htp_context() {
+    delete[] work_data;
+
     rpcmem_deinit();
 }
 
 // singleton
-static ggml_backend_htp_context * get_htp_backend_context() {
+ggml_backend_htp_context * ggml_backend_htp_context::instance() {
     static std::unique_ptr<ggml_backend_htp_context> ctx_ptr;
     static std::once_flag                            ctx_once_flag;
 
@@ -172,17 +168,39 @@ static void ggml_backend_htp_mul_mat(ggml_backend_htp_context * ctx, struct ggml
 }
 
 static enum ggml_status ggml_backend_htp_graph_compute(ggml_backend_t backend, struct ggml_cgraph * cgraph) {
-    static ggml_backend_t my_cpu_backend = nullptr;
-    if (!my_cpu_backend) {
-        auto * cpu_dev = ggml_backend_reg_dev_get(ggml_backend_cpu_reg(), 0);
-        // my_cpu_backend = ggml_backend_init_by_type(GGML_BACKEND_DEVICE_TYPE_CPU, nullptr);
-        my_cpu_backend = ggml_backend_dev_init(cpu_dev, nullptr);
-        GGML_ASSERT(my_cpu_backend);
+    constexpr bool use_mock_cpu_backend = false;
+
+    if (use_mock_cpu_backend) {
+        // simple mock: use cpu backend
+        static ggml_backend_t my_cpu_backend = nullptr;
+        if (!my_cpu_backend) {
+            auto * cpu_dev = ggml_backend_reg_dev_get(ggml_backend_cpu_reg(), 0);
+            // my_cpu_backend = ggml_backend_init_by_type(GGML_BACKEND_DEVICE_TYPE_CPU, nullptr);
+            my_cpu_backend = ggml_backend_dev_init(cpu_dev, nullptr);
+            GGML_ASSERT(my_cpu_backend);
+        }
+
+        return ggml_backend_graph_compute(my_cpu_backend, cgraph);
     }
 
-    return ggml_backend_graph_compute(my_cpu_backend, cgraph);
+    struct ggml_backend_htp_context * ctx = (struct ggml_backend_htp_context *) backend->context;
 
-    GGML_UNUSED(backend);
+    struct ggml_cplan cplan = ggml_graph_plan(cgraph, ctx->n_threads, ctx->threadpool);
+
+    if (ctx->work_size < cplan.work_size) {
+        delete[] ctx->work_data;
+        ctx->work_data = new uint8_t[cplan.work_size]{ 0 };
+        if (!ctx->work_data) {
+            ctx->work_size = 0;
+            return GGML_STATUS_ALLOC_FAILED;
+        }
+    }
+    cplan.work_data = (uint8_t *) ctx->work_data;
+
+    // cplan.abort_callback      = ctx->abort_callback;
+    // cplan.abort_callback_data = ctx->abort_callback_data;
+
+    return ggml_graph_compute_htp_hybrid(cgraph, &cplan);
 }
 
 static struct ggml_backend_i htp_backend_i = {
@@ -209,7 +227,7 @@ static ggml_guid_t ggml_backend_htp_guid(void) {
 
 static ggml_backend_t ggml_backend_htp_init(void) {
     // ggml_backend_htp_context * ctx = new ggml_backend_htp_context;
-    auto * ctx = get_htp_backend_context();
+    auto * ctx = ggml_backend_htp_context::instance();
 
     ggml_backend_t backend = new ggml_backend{
         /* .guid      = */ ggml_backend_htp_guid(),

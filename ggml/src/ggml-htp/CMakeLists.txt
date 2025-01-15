@@ -4,6 +4,8 @@ set(GGML_SOURCES_HTP
     ggml-htp.cc
     dsprpc_interface.h
     dsprpc_interface.cc
+    ggml-htp-impl.h
+    htp-cpu-impl.c
 )
 
 ggml_add_backend_library(ggml-htp ${GGML_SOURCES_HTP})
