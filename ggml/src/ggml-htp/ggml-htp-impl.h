@@ -2,6 +2,7 @@
 #pragma once
 
 #include "ggml.h"
+#include "rpcmem_mapper.h"
 
 // singleton HTP backend context
 struct ggml_backend_htp_context {
@@ -13,6 +14,9 @@ struct ggml_backend_htp_context {
     struct ggml_threadpool * threadpool = nullptr;
 
     // TODO(hzx): add abort_callback & abort_callback_data
+
+    // shared rpcmem mapper
+    RpcMemMapper mapper;
 
     ggml_backend_htp_context();
     ~ggml_backend_htp_context();

@@ -6,6 +6,8 @@ set(GGML_SOURCES_HTP
     dsprpc_interface.cc
     ggml-htp-impl.h
     htp-cpu-impl.c
+    rpcmem_mapper.cc
+    rpcmem_mapper.h
 )
 
 ggml_add_backend_library(ggml-htp ${GGML_SOURCES_HTP})

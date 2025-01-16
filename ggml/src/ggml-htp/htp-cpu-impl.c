@@ -1,6 +1,8 @@
 #define _CRT_SECURE_NO_DEPRECATE // Disables "unsafe" warnings on Windows
 #define _USE_MATH_DEFINES // For M_PI on MSVC
 
+#include "rpcmem_mapper.h"
+
 #include "../ggml-cpu/ggml-cpu-traits.h"
 #include "../ggml-cpu/ggml-cpu-impl.h"
 #include "ggml-cpu.h"
@@ -12979,6 +12981,10 @@ static thread_ret_t ggml_graph_compute_thread(void * data) {
         // if (state->ith == 0) {
         //     fprintf(stderr, "preparing to compute node %d %s\n", node_n, node->name);
         // }
+
+        if (state->ith == 0) {
+            prepare_tensor_rpcmem_mapping(node);
+        }
 
         ggml_compute_forward(&params, node);
 

@@ -12,8 +12,8 @@
 #include "ggml-htp-impl.h"
 
 // real backend initialization work is done here. ggml_backend_htp_init is only a wrapper
-ggml_backend_htp_context::ggml_backend_htp_context() {
-    printf("Initializing HTP backend... (You should see this once)\n");
+ggml_backend_htp_context::ggml_backend_htp_context() : mapper(768UL * 1024 * 1024) {
+    fprintf(stderr, "Initializing HTP backend... (You should see this once)\n");
 
     // rpcmem_init & rpcmem_deinit are actually not required on modern Hexagon processors
     rpcmem_init();
@@ -145,6 +145,10 @@ static ggml_backend_buffer_type_t ggml_backend_htp_buffer_type() {
     };
 
     return &ggml_backend_htp_buffer_type;
+}
+
+bool ggml_backend_buft_is_rpcmem(ggml_backend_buffer_type_t buft) {
+    return buft->iface.get_name == ggml_backend_htp_buffer_type_get_name;
 }
 
 // backend interface
