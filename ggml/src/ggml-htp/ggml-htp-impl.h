@@ -4,6 +4,8 @@
 #include "ggml.h"
 #include "rpcmem_mapper.h"
 
+static const char * HTP_OPS_DL_PATH = "libhtp_ops.so";
+
 // singleton HTP backend context
 struct ggml_backend_htp_context {
     // stuff in struct ggml_backend_cpu_context, see ggml-cpu.cpp
@@ -18,6 +20,10 @@ struct ggml_backend_htp_context {
     // shared rpcmem mapper
     RpcMemMapper mapper;
 
+    // HTP ops backend library
+    void * ops_dl_handle;
+    bool ops_backend_initialized = false;
+
     ggml_backend_htp_context();
     ~ggml_backend_htp_context();
 
@@ -27,5 +33,4 @@ struct ggml_backend_htp_context {
 extern "C" {
 
 enum ggml_status ggml_graph_compute_htp_hybrid(struct ggml_cgraph * cgraph, struct ggml_cplan * cplan);
-
 }

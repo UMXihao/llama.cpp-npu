@@ -1,5 +1,7 @@
 #include "ggml-htp.h"
 
+#include <dlfcn.h>
+
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -17,12 +19,46 @@ ggml_backend_htp_context::ggml_backend_htp_context() : mapper(768UL * 1024 * 102
 
     // rpcmem_init & rpcmem_deinit are actually not required on modern Hexagon processors
     rpcmem_init();
+
+    ops_dl_handle = dlopen(HTP_OPS_DL_PATH, RTLD_LAZY | RTLD_LOCAL);
+    if (ops_dl_handle != nullptr) {
+        using open_session_fn_type = int(int, int);
+        using init_htp_ops_fn_type = void();
+
+        auto open_session = reinterpret_cast<open_session_fn_type *>(dlsym(ops_dl_handle, "open_dsp_session"));
+        auto init_htp_ops = reinterpret_cast<init_htp_ops_fn_type *>(dlsym(ops_dl_handle, "init_htp_backend"));
+        GGML_ASSERT(open_session && init_htp_ops);
+
+        int err = open_session(CDSP_DOMAIN_ID, 1);
+        if (err == 0) {
+            init_htp_ops();
+            ops_backend_initialized = true;
+        } else {
+            fprintf(stderr, "Failed to open remote session on Hexagon NPU (0x%x)\n", err);
+        }
+    } else {
+        fprintf(stderr, "Cannot load HTP ops backend library, all OPs will fallback to CPU implementation\n");
+    }
 }
 
 ggml_backend_htp_context::~ggml_backend_htp_context() {
     delete[] work_data;
 
     rpcmem_deinit();
+
+    if (ops_dl_handle) {
+        if (ops_backend_initialized) {
+            using close_session_fn = void();
+
+            auto close_session = reinterpret_cast<close_session_fn *>(dlsym(ops_dl_handle, "close_dsp_session"));
+            GGML_ASSERT(close_session);
+
+            close_session();
+            ops_backend_initialized = false;
+        }
+
+        dlclose(ops_dl_handle);
+    }
 }
 
 // singleton
@@ -105,7 +141,7 @@ static ggml_backend_buffer_t ggml_backend_htp_buffer_type_alloc_buffer(ggml_back
     void * data = rpcmem_alloc(RPCMEM_HEAP_ID_SYSTEM, RPCMEM_FLAG_UNCACHED, size);
     GGML_ASSERT(data);
 
-    printf("RPCMEM alloc size = %.5f MiB\n", size / 1024.0 / 1024.0);
+    fprintf(stderr, "RPCMEM alloc size = %.5f MiB\n", size / 1024.0 / 1024.0);
 
     return ggml_backend_buffer_init(buft, ggml_backend_htp_buffer_i, data, size);
 }

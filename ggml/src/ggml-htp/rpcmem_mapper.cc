@@ -44,11 +44,11 @@ void RpcMemMapper::validate(const ggml_tensor * dst) {
         void * buf_base     = accessed_bufs.back();
         auto [fd, buf_size] = buf_mapping.at(buf_base);
 
-        GGML_LOG("rpcmem_mapper: removing memory mapping for rpcmem buffer %p, size %.2f MiB, fd %d\n", buf_base,
-                 buf_size / 1048576.0, fd);
+        // fprintf(stderr, "rpcmem_mapper: removing memory mapping for rpcmem buffer %p, size %.2f MiB, fd %d\n", buf_base,
+        //          buf_size / 1048576.0, fd);
         int err = fastrpc_munmap(CDSP_DOMAIN_ID, fd, buf_base, buf_size);
         if (err) {
-            GGML_LOG_ERROR("fastrpc_munmap failed with return code: %x\n", err);
+            fprintf(stderr, "fastrpc_munmap failed with return code: %x\n", err);
         }
 
         accessed_bufs.pop_back();
@@ -70,8 +70,8 @@ void RpcMemMapper::validate(const ggml_tensor * dst) {
             if (err) {
                 GGML_ABORT("fastrpc_mmap failed with return code: %x\n", err);
             }
-            GGML_LOG("rpcmem_mapper: creating memory mapping for rpcmem buffer %p, size %.2f MiB, fd %d\n", buf_base,
-                     buf_size / 1048576.0, fd);
+            // fprintf(stderr, "rpcmem_mapper: creating memory mapping for rpcmem buffer %p, size %.2f MiB, fd %d\n", buf_base,
+            //          buf_size / 1048576.0, fd);
 
             accessed_bufs.push_front(buf_base);
             buf_iters[buf_base]   = accessed_bufs.begin();

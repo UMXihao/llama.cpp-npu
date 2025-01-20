@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_DEPRECATE // Disables "unsafe" warnings on Windows
 #define _USE_MATH_DEFINES // For M_PI on MSVC
 
+#include "htp-ops.h"
 #include "rpcmem_mapper.h"
 
 #include "../ggml-cpu/ggml-cpu-traits.h"
@@ -12141,7 +12142,11 @@ static void ggml_compute_forward(struct ggml_compute_params * params, struct ggm
             } break;
         case GGML_OP_RMS_NORM:
             {
-                ggml_compute_forward_rms_norm(params, tensor);
+                if (htp_ops_support_op(tensor)) {
+                    htp_ops_compute_op(params, tensor);
+                } else {
+                    ggml_compute_forward_rms_norm(params, tensor);
+                }
             } break;
         case GGML_OP_RMS_NORM_BACK:
             {
@@ -12484,222 +12489,6 @@ static void set_numa_thread_affinity(int thread_n) { UNUSED(thread_n);  }
 static void clear_numa_thread_affinity(void) {}
 #endif
 
-static int ggml_get_n_tasks(struct ggml_tensor * node, int n_threads) {
-    int n_tasks = 0;
-
-    if (ggml_is_empty(node)) {
-        // no need to multi-thread a no-op
-        n_tasks = 1;
-        return n_tasks;
-    }
-
-    switch (node->op) {
-        case GGML_OP_CPY:
-        case GGML_OP_DUP:
-        case GGML_OP_CONT:
-        case GGML_OP_ADD:
-        case GGML_OP_ADD1:
-        case GGML_OP_ACC:
-            {
-                n_tasks = n_threads;
-            } break;
-        case GGML_OP_SUB:
-        case GGML_OP_SQR:
-        case GGML_OP_SQRT:
-        case GGML_OP_LOG:
-        case GGML_OP_SIN:
-        case GGML_OP_COS:
-        case GGML_OP_SUM:
-        case GGML_OP_SUM_ROWS:
-        case GGML_OP_MEAN:
-        case GGML_OP_ARGMAX:
-            {
-                n_tasks = 1;
-            } break;
-        case GGML_OP_COUNT_EQUAL:
-            {
-                n_tasks = n_threads;
-            } break;
-        case GGML_OP_REPEAT:
-        case GGML_OP_REPEAT_BACK:
-        case GGML_OP_LEAKY_RELU:
-            {
-                n_tasks = 1;
-            } break;
-        case GGML_OP_UNARY:
-            switch (ggml_get_unary_op(node)) {
-                case GGML_UNARY_OP_ABS:
-                case GGML_UNARY_OP_SGN:
-                case GGML_UNARY_OP_NEG:
-                case GGML_UNARY_OP_STEP:
-                case GGML_UNARY_OP_TANH:
-                case GGML_UNARY_OP_ELU:
-                case GGML_UNARY_OP_RELU:
-                case GGML_UNARY_OP_SIGMOID:
-                case GGML_UNARY_OP_HARDSWISH:
-                case GGML_UNARY_OP_HARDSIGMOID:
-                case GGML_UNARY_OP_EXP:
-                    {
-                        n_tasks = 1;
-                    } break;
-
-                case GGML_UNARY_OP_GELU:
-                case GGML_UNARY_OP_GELU_QUICK:
-                case GGML_UNARY_OP_SILU:
-                    {
-                        n_tasks = n_threads;
-                    } break;
-                default:
-                    GGML_ABORT("fatal error");
-            }
-            break;
-        case GGML_OP_SILU_BACK:
-        case GGML_OP_MUL:
-        case GGML_OP_DIV:
-        case GGML_OP_NORM:
-        case GGML_OP_RMS_NORM:
-        case GGML_OP_RMS_NORM_BACK:
-        case GGML_OP_GROUP_NORM:
-        case GGML_OP_CONCAT:
-        case GGML_OP_MUL_MAT:
-        case GGML_OP_MUL_MAT_ID:
-        case GGML_OP_OUT_PROD:
-            {
-                n_tasks = n_threads;
-            } break;
-        case GGML_OP_GET_ROWS:
-            {
-                // FIXME: get_rows can use additional threads, but the cost of launching additional threads
-                // decreases performance with GPU offloading
-                //n_tasks = n_threads;
-                n_tasks = 1;
-            } break;
-        case GGML_OP_SCALE:
-        case GGML_OP_SET:
-        case GGML_OP_RESHAPE:
-        case GGML_OP_VIEW:
-        case GGML_OP_PERMUTE:
-        case GGML_OP_TRANSPOSE:
-        case GGML_OP_GET_ROWS_BACK:
-        case GGML_OP_DIAG:
-            {
-                n_tasks = 1;
-            } break;
-        case GGML_OP_DIAG_MASK_ZERO:
-        case GGML_OP_DIAG_MASK_INF:
-        case GGML_OP_SOFT_MAX_BACK:
-        case GGML_OP_ROPE:
-        case GGML_OP_ROPE_BACK:
-        case GGML_OP_ADD_REL_POS:
-            {
-                n_tasks = n_threads;
-            } break;
-        case GGML_OP_CLAMP:
-            {
-                n_tasks = 1; //TODO
-            } break;
-        case GGML_OP_SOFT_MAX:
-            {
-                n_tasks = MIN(n_threads, ggml_nrows(node->src[0]));
-            } break;
-        case GGML_OP_IM2COL:
-        case GGML_OP_IM2COL_BACK:
-        case GGML_OP_CONV_TRANSPOSE_1D:
-        case GGML_OP_CONV_TRANSPOSE_2D:
-            {
-                n_tasks = n_threads;
-            } break;
-        case GGML_OP_POOL_1D:
-        case GGML_OP_POOL_2D:
-        case GGML_OP_POOL_2D_BACK:
-            {
-                n_tasks = 1;
-            } break;
-        case GGML_OP_UPSCALE:
-        case GGML_OP_PAD:
-        case GGML_OP_PAD_REFLECT_1D:
-        case GGML_OP_ARANGE:
-        case GGML_OP_TIMESTEP_EMBEDDING:
-        case GGML_OP_ARGSORT:
-        case GGML_OP_FLASH_ATTN_EXT:
-        case GGML_OP_FLASH_ATTN_BACK:
-        case GGML_OP_SSM_CONV:
-        case GGML_OP_SSM_SCAN:
-            {
-                n_tasks = n_threads;
-            } break;
-        case GGML_OP_WIN_PART:
-        case GGML_OP_WIN_UNPART:
-        case GGML_OP_GET_REL_POS:
-        case GGML_OP_RWKV_WKV6:
-        case GGML_OP_MAP_UNARY:
-        case GGML_OP_MAP_BINARY:
-        case GGML_OP_MAP_CUSTOM1_F32:
-        case GGML_OP_MAP_CUSTOM2_F32:
-        case GGML_OP_MAP_CUSTOM3_F32:
-            {
-                n_tasks = 1;
-            } break;
-        case GGML_OP_MAP_CUSTOM1:
-            {
-                struct ggml_map_custom1_op_params p;
-                memcpy(&p, node->op_params, sizeof(p));
-                if (p.n_tasks == GGML_N_TASKS_MAX) {
-                    n_tasks = n_threads;
-                } else {
-                    n_tasks = MIN(p.n_tasks, n_threads);
-                }
-            } break;
-        case GGML_OP_MAP_CUSTOM2:
-            {
-                struct ggml_map_custom2_op_params p;
-                memcpy(&p, node->op_params, sizeof(p));
-                if (p.n_tasks == GGML_N_TASKS_MAX) {
-                    n_tasks = n_threads;
-                } else {
-                    n_tasks = MIN(p.n_tasks, n_threads);
-                }
-            } break;
-        case GGML_OP_MAP_CUSTOM3:
-            {
-                struct ggml_map_custom3_op_params p;
-                memcpy(&p, node->op_params, sizeof(p));
-                if (p.n_tasks == GGML_N_TASKS_MAX) {
-                    n_tasks = n_threads;
-                } else {
-                    n_tasks = MIN(p.n_tasks, n_threads);
-                }
-            } break;
-        case GGML_OP_CROSS_ENTROPY_LOSS:
-        case GGML_OP_CROSS_ENTROPY_LOSS_BACK:
-        case GGML_OP_OPT_STEP_ADAMW:
-            {
-                n_tasks = n_threads;
-            } break;
-        case GGML_OP_NONE:
-            {
-                n_tasks = 1;
-            } break;
-        case GGML_OP_COUNT:
-            {
-                GGML_ABORT("fatal error");
-            }
-        default:
-            {
-                fprintf(stderr, "%s: op not implemented: ", __func__);
-                if (node->op < GGML_OP_COUNT) {
-                    fprintf(stderr, "%s\n", ggml_op_name(node->op));
-                } else {
-                    fprintf(stderr, "%d\n", node->op);
-                }
-                GGML_ABORT("fatal error");
-            }
-    }
-
-    assert(n_tasks > 0);
-
-    return n_tasks;
-}
 
 static thread_ret_t ggml_graph_compute_secondary_thread(void* data);
 

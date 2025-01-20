@@ -18621,8 +18621,8 @@ static int llama_decode_internal(
             lctx.n_outputs = n_outputs_new;
         }
 
-        LLAMA_LOG("ubatch id %d, n_tokens: %u, n_seq_tokens: %u, n_seqs: %u, n_outputs: %d\n",
-            n_ubatches, ubatch.n_tokens, ubatch.n_seq_tokens, ubatch.n_seqs, lctx.n_outputs);
+        // fprintf(stderr, "ubatch id %d, n_tokens: %u, n_seq_tokens: %u, n_seqs: %u, n_outputs: %d\n",
+        //     n_ubatches, ubatch.n_tokens, ubatch.n_seq_tokens, ubatch.n_seqs, lctx.n_outputs);
         n_ubatches++;
 
         int n_threads = n_tokens == 1 ? cparams.n_threads : cparams.n_threads_batch;
@@ -18795,7 +18795,7 @@ static int llama_decode_internal(
         n_outputs_prev += lctx.n_outputs;
     }
 
-    LLAMA_LOG("llama_decode_internal: split into %d ubatches, logical batch.n_tokens = %d\n", n_ubatches, batch.n_tokens);
+    // fprintf(stderr, "llama_decode_internal: split into %d ubatches, logical batch.n_tokens = %d\n", n_ubatches, batch.n_tokens);
 
     // set output mappings
     {
