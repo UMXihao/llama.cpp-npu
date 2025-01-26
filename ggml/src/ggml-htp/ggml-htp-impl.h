@@ -8,6 +8,8 @@ static const char * HTP_OPS_DL_PATH = "libhtp_ops.so";
 
 // singleton HTP backend context
 struct ggml_backend_htp_context {
+    static constexpr size_t MAX_MSG_SIZE = 4096;
+
     // stuff in struct ggml_backend_cpu_context, see ggml-cpu.cpp
     size_t    work_size = 0;
     uint8_t * work_data = nullptr;
@@ -22,10 +24,14 @@ struct ggml_backend_htp_context {
 
     // HTP ops backend library
     void * ops_dl_handle;
-    bool ops_backend_initialized = false;
+    bool   ops_backend_initialized = false;
+    void * ops_msg_chan            = nullptr;
+    int    msg_chan_fd;
 
     ggml_backend_htp_context();
     ~ggml_backend_htp_context();
+
+    int init_message_channel();
 
     static ggml_backend_htp_context * instance();
 };

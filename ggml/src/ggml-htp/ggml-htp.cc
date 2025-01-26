@@ -14,7 +14,7 @@
 #include "ggml-htp-impl.h"
 
 // real backend initialization work is done here. ggml_backend_htp_init is only a wrapper
-ggml_backend_htp_context::ggml_backend_htp_context() : mapper(768UL * 1024 * 1024) {
+ggml_backend_htp_context::ggml_backend_htp_context() : mapper(1024UL * 1024 * 1024, true) {
     fprintf(stderr, "Initializing HTP backend... (You should see this once)\n");
 
     // rpcmem_init & rpcmem_deinit are actually not required on modern Hexagon processors
@@ -32,7 +32,10 @@ ggml_backend_htp_context::ggml_backend_htp_context() : mapper(768UL * 1024 * 102
         int err = open_session(CDSP_DOMAIN_ID, 1);
         if (err == 0) {
             init_htp_ops();
-            ops_backend_initialized = true;
+
+            if (init_message_channel() == 0) {
+                ops_backend_initialized = true;
+            }
         } else {
             fprintf(stderr, "Failed to open remote session on Hexagon NPU (0x%x)\n", err);
         }
@@ -44,8 +47,6 @@ ggml_backend_htp_context::ggml_backend_htp_context() : mapper(768UL * 1024 * 102
 ggml_backend_htp_context::~ggml_backend_htp_context() {
     delete[] work_data;
 
-    rpcmem_deinit();
-
     if (ops_dl_handle) {
         if (ops_backend_initialized) {
             using close_session_fn = void();
@@ -54,11 +55,45 @@ ggml_backend_htp_context::~ggml_backend_htp_context() {
             GGML_ASSERT(close_session);
 
             close_session();
+            // release message channel
+            fastrpc_munmap(CDSP_DOMAIN_ID, msg_chan_fd, ops_msg_chan, MAX_MSG_SIZE);
+            rpcmem_free(ops_msg_chan);
             ops_backend_initialized = false;
         }
 
         dlclose(ops_dl_handle);
     }
+
+    rpcmem_deinit();
+}
+
+int ggml_backend_htp_context::init_message_channel() {
+    constexpr size_t MAX_MSG_SIZE = 4096;
+
+    using create_msg_channel_fn_type = int(int, unsigned int);
+
+    auto create_msg_channel =
+        reinterpret_cast<create_msg_channel_fn_type *>(dlsym(ops_dl_handle, "create_htp_message_channel"));
+    if (!create_msg_channel) {
+        return -1;
+    }
+
+    ops_msg_chan = rpcmem_alloc(RPCMEM_HEAP_ID_SYSTEM, RPCMEM_FLAG_UNCACHED, MAX_MSG_SIZE);
+    if (!ops_msg_chan) {
+        return -1;
+    }
+
+    msg_chan_fd = rpcmem_to_fd(ops_msg_chan);
+    if (msg_chan_fd < 0) {
+        return -1;
+    }
+
+    int err = fastrpc_mmap(CDSP_DOMAIN_ID, msg_chan_fd, ops_msg_chan, 0, MAX_MSG_SIZE, FASTRPC_MAP_FD);
+    if (err) {
+        return -1;
+    }
+
+    return create_msg_channel(msg_chan_fd, MAX_MSG_SIZE);
 }
 
 // singleton

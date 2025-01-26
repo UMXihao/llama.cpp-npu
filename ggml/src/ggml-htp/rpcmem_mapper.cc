@@ -6,7 +6,6 @@
 #include "ggml-backend-impl.h"
 #include "ggml-htp-impl.h"
 #include "ggml-htp.h"
-#include "ggml-impl.h"
 
 void RpcMemMapper::validate(const ggml_tensor * dst) {
     std::vector<ggml_backend_buffer *> buffers;
@@ -44,11 +43,16 @@ void RpcMemMapper::validate(const ggml_tensor * dst) {
         void * buf_base     = accessed_bufs.back();
         auto [fd, buf_size] = buf_mapping.at(buf_base);
 
-        // fprintf(stderr, "rpcmem_mapper: removing memory mapping for rpcmem buffer %p, size %.2f MiB, fd %d\n", buf_base,
-        //          buf_size / 1048576.0, fd);
-        int err = fastrpc_munmap(CDSP_DOMAIN_ID, fd, buf_base, buf_size);
-        if (err) {
-            fprintf(stderr, "fastrpc_munmap failed with return code: %x\n", err);
+        if (defer_unmap) {
+            // We assume slightly exceeding the planned max_active_map_size is acceptable
+            pending_unmap_reqs.emplace_back(fd, buf_base, buf_size);
+        } else {
+            // fprintf(stderr, "rpcmem_mapper: removing memory mapping for rpcmem buffer %p, size %.2f MiB, fd %d\n", buf_base,
+            //          buf_size / 1048576.0, fd);
+            int err = fastrpc_munmap(CDSP_DOMAIN_ID, fd, buf_base, buf_size);
+            if (err) {
+                fprintf(stderr, "fastrpc_munmap failed with return code: %x\n", err);
+            }
         }
 
         accessed_bufs.pop_back();
@@ -88,6 +92,18 @@ std::pair<int, ssize_t> RpcMemMapper::get_tensor_mapping(const ggml_tensor * ten
     auto [fd, _]    = buf_mapping.at(buf_base);
     auto offset     = (intptr_t) tensor->data - (intptr_t) buf_base;
     return { fd, offset };
+}
+
+void RpcMemMapper::unmap_all_pending_buffers() {
+    for (auto it = pending_unmap_reqs.begin(); it != pending_unmap_reqs.end();) {
+        auto [fd, buf_base, buf_size] = *it;
+
+        int err = fastrpc_munmap(CDSP_DOMAIN_ID, fd, buf_base, buf_size);
+        if (err) {
+            fprintf(stderr, "fastrpc_munmap failed with return code: %x\n", err);
+        }
+        it = pending_unmap_reqs.erase(it);
+    }
 }
 
 extern "C" {

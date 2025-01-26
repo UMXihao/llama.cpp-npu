@@ -17,16 +17,28 @@ int prepare_tensor_rpcmem_mapping(const struct ggml_tensor * dst);
 #    include <unordered_map>
 
 struct RpcMemMapper {
-    RpcMemMapper() : max_active_map_size{ (size_t) -1 }, active_map_size{ 0 } {}
+    RpcMemMapper() : max_active_map_size{ (size_t) -1 }, active_map_size{ 0 }, defer_unmap{ false } {}
 
-    RpcMemMapper(size_t max_size) : max_active_map_size{ max_size }, active_map_size{ 0 } {}
+    RpcMemMapper(size_t max_size, bool defer_unmap_ops) :
+        max_active_map_size{ max_size },
+        active_map_size{ 0 },
+        defer_unmap{ defer_unmap_ops } {}
 
     void                    validate(const struct ggml_tensor * dst);
     std::pair<int, ssize_t> get_tensor_mapping(const struct ggml_tensor *) const;  // returns <mapping fd, offset>
 
+    using UnmapRequest = std::tuple<int, void *, size_t>;
+
+    const std::list<UnmapRequest> & get_pending_unmap_reqs() const { return pending_unmap_reqs; }
+
+    void unmap_all_pending_buffers();
+
   private:
     size_t max_active_map_size;
     size_t active_map_size;
+
+    bool                    defer_unmap;
+    std::list<UnmapRequest> pending_unmap_reqs;
 
     std::unordered_map<void *, std::pair<int, size_t>>      buf_mapping;
     std::unordered_map<void *, std::list<void *>::iterator> buf_iters;      // for LRU replacement
