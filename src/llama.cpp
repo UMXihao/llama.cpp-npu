@@ -7902,6 +7902,13 @@ static bool llm_load_tensors(
                 buft = ggml_backend_dev_buffer_type(cpu_dev);
             }
 
+            // NOTE(hzx): keep token_embd.weight & output.weight on cpu
+            if (tn_tensor == LLM_TENSOR_TOKEN_EMBD || tn_tensor == LLM_TENSOR_OUTPUT) {
+                auto * cpu_dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_CPU);
+                buft = ggml_backend_dev_buffer_type(cpu_dev);
+            }
+
+
             if (buft != buft_list->front().second) {
                 n_moved_tensors++;
                 if (!first_moved_tensor) {

@@ -33,7 +33,11 @@ struct RpcMemMapper {
 
     void unmap_all_pending_buffers();
 
+    void dump_state() const; // for debugging
+
   private:
+    int n_map_ops = 0; // for debugging only, remove later
+
     size_t max_active_map_size;
     size_t active_map_size;
 

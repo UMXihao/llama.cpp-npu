@@ -172,6 +172,11 @@ int htp_ops_compute_op(struct ggml_compute_params * params, struct ggml_tensor *
 
     // issue request
     msg_hdr->state.v[0] = 1;
+    
+    if (has_unmap_reqs) {
+        ctx->mapper.unmap_all_pending_buffers();
+    }
+
     while (msg_hdr->state.v[1] != 1) {
         // TODO(hzx): use cpu_relax here
         usleep(1);
