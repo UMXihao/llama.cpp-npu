@@ -28,6 +28,9 @@ struct ggml_backend_htp_context {
     void * ops_msg_chan            = nullptr;
     int    msg_chan_fd;
 
+    // debug
+    bool skip_htp_ops = false;
+
     ggml_backend_htp_context();
     ~ggml_backend_htp_context();
 

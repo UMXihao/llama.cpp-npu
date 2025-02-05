@@ -3,6 +3,7 @@
 #include <dlfcn.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cstring>
 #include <vector>
 
@@ -10,7 +11,6 @@
 #include "ggml-htp-impl.h"
 #include "ggml-htp.h"
 #include "ggml.h"
-#include "rpcmem_mapper.h"
 
 ////// Special headers intended for CPU-NPU communication. Keep them in sync with ops backend.
 #include "message.h"
@@ -51,19 +51,36 @@ uint8_t param_buf[4096];  // TODO(hzx): better implementation
 extern "C" {
 
 bool htp_ops_support_op(const struct ggml_tensor * dst) {
-    if (!ggml_backend_htp_context::instance()->ops_backend_initialized) {
+    auto * ctx = ggml_backend_htp_context::instance();
+    if (ctx->skip_htp_ops) {
+        return false;
+    }
+    if (!ctx->ops_backend_initialized) {
         return false;
     }
 
-    void * ops_dl_handle = ggml_backend_htp_context::instance()->ops_dl_handle;
+    void * ops_dl_handle = ctx->ops_dl_handle;
     GGML_ASSERT(ops_dl_handle);
 
     switch (dst->op) {
         case GGML_OP_RMS_NORM:
+            return false;
+
             if (dst->type == GGML_TYPE_F32 && dst->src[0]->type == GGML_TYPE_F32) {
                 // NOTE: RPC version is mainly for testing
                 return dlsym(ops_dl_handle, "htp_ops_rpc_rms_norm_f32") != nullptr;
-            } else {
+            }
+            return false;
+        case GGML_OP_MUL_MAT:
+            {
+                auto * weight     = dst->src[0];
+                auto * activation = dst->src[1];
+                if (dst->type == GGML_TYPE_F32 && weight->type == GGML_TYPE_F16 && activation->type == GGML_TYPE_F32) {
+                    size_t k = weight->ne[0];
+                    size_t n = weight->ne[1];
+                    return k % 32 == 0 && n % 32 == 0 && ggml_nrows(dst) == dst->ne[1] &&
+                           ggml_nrows(activation) == activation->ne[1];
+                }
                 return false;
             }
         default:
@@ -78,7 +95,7 @@ int htp_ops_compute_op(struct ggml_compute_params * params, struct ggml_tensor *
 
     constexpr bool prefer_rpc = false;
 
-    int op_index  = 0;
+    int op_index  = -1;
     int args_size = 0;  // strictly 32 bits
 
     switch (dst->op) {
@@ -114,6 +131,56 @@ int htp_ops_compute_op(struct ggml_compute_params * params, struct ggml_tensor *
                 op_index  = HTP_OPS_RMS_NORM_F32;
                 args_size = sizeof(RmsNormF32Params);
             }
+            break;
+        case GGML_OP_MUL_MAT:
+            if (params->ith != 0) {
+                return 0;
+            }
+
+            {
+                auto * weight     = dst->src[0];
+                auto * activation = dst->src[1];
+
+                auto mappings = get_all_rpcmem_mappings(dst);
+                GGML_ASSERT(mappings.size() == 3);
+
+                auto [output_fd, output_offset]         = mappings[0];
+                auto [weight_fd, weight_offset]         = mappings[1];
+                auto [activation_fd, activation_offset] = mappings[2];
+
+                int m = ggml_nrows(activation);
+                int k = weight->ne[0];
+                int n = weight->ne[1];
+
+                if (dst->type == GGML_TYPE_F32 && weight->type == GGML_TYPE_F16 && activation->type == GGML_TYPE_F32) {
+                    if (prefer_rpc) {
+                        using fn_type = int(int, int, int, int, int, int, int, int, int);
+
+                        auto op_fn =
+                            reinterpret_cast<fn_type *>(dlsym(ops_dl_handle, "htp_ops_rpc_mat_mul_permuted_w16a32"));
+                        GGML_ASSERT(op_fn);
+
+                        return op_fn(output_fd, output_offset, activation_fd, activation_offset, weight_fd,
+                                     weight_offset, m, k, n);
+                    }
+
+                    MatMulPermutedW16A32Params params{
+                        .output     = { output_fd,     (int32_t) output_offset     },
+                        .activation = { activation_fd, (int32_t) activation_offset },
+                        .weight     = { weight_fd,     (int32_t) weight_offset     },
+                        .m          = m,
+                        .k          = k,
+                        .n          = n,
+                    };
+                    *reinterpret_cast<MatMulPermutedW16A32Params *>(param_buf) = params;
+
+                    op_index  = HTP_OPS_MAT_MUL_PERMUTED_W16A32;
+                    args_size = sizeof(MatMulPermutedW16A32Params);
+                } else {
+                    GGML_ASSERT(false && "not implemented");
+                }
+            }
+            break;
         default:
             break;
     }
@@ -128,8 +195,12 @@ int htp_ops_compute_op(struct ggml_compute_params * params, struct ggml_tensor *
 
     size_t op_req_size = sizeof(RequestHeader) + sizeof(OpComputeRequest) + args_size;
 
-    auto * msg_hdr          = reinterpret_cast<MessageHeader *>(ctx->ops_msg_chan);
-    msg_hdr->state.d        = 0;
+    auto * msg_hdr = reinterpret_cast<MessageHeader *>(ctx->ops_msg_chan);
+
+    // FIXME: this is very ugly
+    auto * d_ptr = reinterpret_cast<volatile std::atomic<uint64_t> *>(&(msg_hdr->state.d));
+    std::atomic_store_explicit(d_ptr, 0, std::memory_order_release);
+
     msg_hdr->n_reqs         = n_reqs;
     msg_hdr->req_offsets[0] = message_header_size(msg_hdr);
     msg_hdr->req_offsets[1] = msg_hdr->req_offsets[0] + op_req_size;
@@ -171,18 +242,22 @@ int htp_ops_compute_op(struct ggml_compute_params * params, struct ggml_tensor *
     }
 
     // issue request
-    msg_hdr->state.v[0] = 1;
-    
+    auto * v0_ptr = reinterpret_cast<volatile std::atomic<uint8_t>*>(&(msg_hdr->state.v[0]));
+    auto * v1_ptr = reinterpret_cast<volatile std::atomic<uint8_t>*>(&(msg_hdr->state.v[1]));
+
+    // NOTE(hzx): make sure memory_order_release is used here to ensure all previous writes are valid
+    std::atomic_store_explicit(v0_ptr, 1, std::memory_order_release);
+    while (std::atomic_load_explicit(v1_ptr, std::memory_order_acquire) == 0) {
+        // TODO(hzx): use cpu_relax here
+        usleep(1);
+    }
+    d_ptr->store(0, std::memory_order_relaxed);
+
     if (has_unmap_reqs) {
         ctx->mapper.unmap_all_pending_buffers();
     }
 
-    while (msg_hdr->state.v[1] != 1) {
-        // TODO(hzx): use cpu_relax here
-        usleep(1);
-    }
-    msg_hdr->state.d = 0;
-
+    std::atomic_thread_fence(std::memory_order_acquire);
     return message_header_get_request_ptr(msg_hdr, 0)->state;
 }
 }

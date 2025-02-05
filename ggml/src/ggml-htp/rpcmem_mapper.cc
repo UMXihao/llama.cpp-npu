@@ -106,6 +106,7 @@ again:
                 fprintf(stderr, "dst name: %s, op: %s, n buffers to map in this step: %ld, active size: %.2f MiB\n",
                         dst->name, ggml_op_name(dst->op), buffers.size(), active_map_size / 1048576.0);
 
+                /*
                 if (++retry < 3) {
                     // try: unmap all other buffers
                     std::unordered_set<void *> buf_ptrs;
@@ -133,7 +134,7 @@ again:
                     }
 
                     goto again;
-                }
+                }*/
 
                 GGML_ABORT(
                     "fastrpc_mmap failed with return code: 0x%x fd: %d buf_base: %p buf_size: %ld buf usage: %d\n", err,

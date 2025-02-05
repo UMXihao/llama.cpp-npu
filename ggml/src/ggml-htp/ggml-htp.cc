@@ -42,6 +42,10 @@ ggml_backend_htp_context::ggml_backend_htp_context() : mapper(1024UL * 1024 * 10
     } else {
         fprintf(stderr, "Cannot load HTP ops backend library, all OPs will fallback to CPU implementation\n");
     }
+
+    if (getenv("SKIP_HTP_OPS")) {
+        skip_htp_ops = true;
+    }
 }
 
 ggml_backend_htp_context::~ggml_backend_htp_context() {
