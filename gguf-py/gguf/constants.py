@@ -1621,6 +1621,8 @@ class LlamaFileType(IntEnum):
     MOSTLY_TQ1_0         = 36  # except 1d tensors
     MOSTLY_TQ2_0         = 37  # except 1d tensors
 
+    MOSTLY_MIXED_Q4_0_F16 = 512
+
     GUESSED              = 1024  # not specified in the model file
 
 

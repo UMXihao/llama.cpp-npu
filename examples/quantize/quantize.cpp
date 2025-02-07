@@ -53,6 +53,8 @@ static const std::vector<struct quant_option> QUANT_OPTIONS = {
     { "F32",      LLAMA_FTYPE_ALL_F32,         "26.00G              @ 7B",          },
     // Note: Ensure COPY comes after F32 to avoid ftype 0 from matching.
     { "COPY",     LLAMA_FTYPE_ALL_F32,         "only copy tensors, no quantizing",  },
+    // custom quant options
+    { "Q4_0+F16", LLAMA_FTYPE_MOSTLY_MIXED_Q4_0_F16, "custom mixed Q4_0 + F16",  },
 };
 
 static const char * const LLM_KV_QUANTIZE_IMATRIX_FILE       = "quantize.imatrix.file";

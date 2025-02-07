@@ -75,9 +75,17 @@ bool htp_ops_support_op(const struct ggml_tensor * dst) {
             {
                 auto * weight     = dst->src[0];
                 auto * activation = dst->src[1];
+
+                size_t k = weight->ne[0];
+                size_t n = weight->ne[1];
+
+                // FP16 weight
                 if (dst->type == GGML_TYPE_F32 && weight->type == GGML_TYPE_F16 && activation->type == GGML_TYPE_F32) {
-                    size_t k = weight->ne[0];
-                    size_t n = weight->ne[1];
+                    return k % 32 == 0 && n % 32 == 0 && ggml_nrows(dst) == dst->ne[1] &&
+                           ggml_nrows(activation) == activation->ne[1];
+                }
+                // (repacked) Q4_0 weight
+                if (dst->type == GGML_TYPE_F32 && weight->type == GGML_TYPE_Q4_0 && activation->type == GGML_TYPE_F32) {
                     return k % 32 == 0 && n % 32 == 0 && ggml_nrows(dst) == dst->ne[1] &&
                            ggml_nrows(activation) == activation->ne[1];
                 }
@@ -152,6 +160,18 @@ int htp_ops_compute_op(struct ggml_compute_params * params, struct ggml_tensor *
                 int k = weight->ne[0];
                 int n = weight->ne[1];
 
+                MatMulParams params{
+                    .output     = { output_fd,     (int32_t) output_offset     },
+                    .activation = { activation_fd, (int32_t) activation_offset },
+                    .weight     = { weight_fd,     (int32_t) weight_offset     },
+                    .m          = m,
+                    .k          = k,
+                    .n          = n,
+                };
+                *reinterpret_cast<MatMulParams *>(param_buf) = params;
+
+                args_size = sizeof(MatMulParams);
+
                 if (dst->type == GGML_TYPE_F32 && weight->type == GGML_TYPE_F16 && activation->type == GGML_TYPE_F32) {
                     if (prefer_rpc) {
                         using fn_type = int(int, int, int, int, int, int, int, int, int);
@@ -164,18 +184,10 @@ int htp_ops_compute_op(struct ggml_compute_params * params, struct ggml_tensor *
                                      weight_offset, m, k, n);
                     }
 
-                    MatMulPermutedW16A32Params params{
-                        .output     = { output_fd,     (int32_t) output_offset     },
-                        .activation = { activation_fd, (int32_t) activation_offset },
-                        .weight     = { weight_fd,     (int32_t) weight_offset     },
-                        .m          = m,
-                        .k          = k,
-                        .n          = n,
-                    };
-                    *reinterpret_cast<MatMulPermutedW16A32Params *>(param_buf) = params;
-
-                    op_index  = HTP_OPS_MAT_MUL_PERMUTED_W16A32;
-                    args_size = sizeof(MatMulPermutedW16A32Params);
+                    op_index = HTP_OPS_MAT_MUL_PERMUTED_W16A32;
+                } else if (dst->type == GGML_TYPE_F32 && weight->type == GGML_TYPE_Q4_0 &&
+                           activation->type == GGML_TYPE_F32) {
+                    op_index = HTP_OPS_MAT_MUL_PERMUTED_W4D16A32;
                 } else {
                     GGML_ASSERT(false && "not implemented");
                 }
@@ -242,8 +254,8 @@ int htp_ops_compute_op(struct ggml_compute_params * params, struct ggml_tensor *
     }
 
     // issue request
-    auto * v0_ptr = reinterpret_cast<volatile std::atomic<uint8_t>*>(&(msg_hdr->state.v[0]));
-    auto * v1_ptr = reinterpret_cast<volatile std::atomic<uint8_t>*>(&(msg_hdr->state.v[1]));
+    auto * v0_ptr = reinterpret_cast<volatile std::atomic<uint8_t> *>(&(msg_hdr->state.v[0]));
+    auto * v1_ptr = reinterpret_cast<volatile std::atomic<uint8_t> *>(&(msg_hdr->state.v[1]));
 
     // NOTE(hzx): make sure memory_order_release is used here to ensure all previous writes are valid
     std::atomic_store_explicit(v0_ptr, 1, std::memory_order_release);
