@@ -79,15 +79,20 @@ bool htp_ops_support_op(const struct ggml_tensor * dst) {
                 size_t k = weight->ne[0];
                 size_t n = weight->ne[1];
 
+                bool shape_ok = k % 32 == 0 && n % 32 == 0 && ggml_nrows(dst) == dst->ne[1] &&
+                                ggml_nrows(activation) == activation->ne[1];
+
                 // FP16 weight
                 if (dst->type == GGML_TYPE_F32 && weight->type == GGML_TYPE_F16 && activation->type == GGML_TYPE_F32) {
-                    return k % 32 == 0 && n % 32 == 0 && ggml_nrows(dst) == dst->ne[1] &&
-                           ggml_nrows(activation) == activation->ne[1];
+                    return shape_ok;
                 }
                 // (repacked) Q4_0 weight
                 if (dst->type == GGML_TYPE_F32 && weight->type == GGML_TYPE_Q4_0 && activation->type == GGML_TYPE_F32) {
-                    return k % 32 == 0 && n % 32 == 0 && ggml_nrows(dst) == dst->ne[1] &&
-                           ggml_nrows(activation) == activation->ne[1];
+                    return shape_ok;
+                }
+                // (repacked) Q8_0 weight
+                if (dst->type == GGML_TYPE_F32 && weight->type == GGML_TYPE_Q8_0 && activation->type == GGML_TYPE_F32) {
+                    return shape_ok;
                 }
                 return false;
             }
@@ -188,6 +193,9 @@ int htp_ops_compute_op(struct ggml_compute_params * params, struct ggml_tensor *
                 } else if (dst->type == GGML_TYPE_F32 && weight->type == GGML_TYPE_Q4_0 &&
                            activation->type == GGML_TYPE_F32) {
                     op_index = HTP_OPS_MAT_MUL_PERMUTED_W4D16A32;
+                } else if (dst->type == GGML_TYPE_F32 && weight->type == GGML_TYPE_Q8_0 &&
+                           activation->type == GGML_TYPE_F32) {
+                    op_index = HTP_OPS_MAT_MUL_PERMUTED_W8D16A32;
                 } else {
                     GGML_ASSERT(false && "not implemented");
                 }

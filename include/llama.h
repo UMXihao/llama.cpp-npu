@@ -180,7 +180,8 @@ extern "C" {
         LLAMA_FTYPE_MOSTLY_TQ1_0         = 36, // except 1d tensors
         LLAMA_FTYPE_MOSTLY_TQ2_0         = 37, // except 1d tensors
 
-        LLAMA_FTYPE_MOSTLY_MIXED_Q4_0_F16 = 512, // except 1d tensors, mixed q4_0 and f16
+        LLAMA_FTYPE_MOSTLY_MIXED_Q4_0_F16  = 512, // except 1d tensors + token embed + lm_head, mixed q4_0 and f16
+        LLAMA_FTYPE_MOSTLY_MIXED_Q4_0_Q8_0 = 513, // except 1d tensors + token embed + lm_head, mixed q4_0 and q8_0
 
         LLAMA_FTYPE_GUESSED = 1024, // not specified in the model file
     };

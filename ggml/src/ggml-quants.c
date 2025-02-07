@@ -5238,6 +5238,7 @@ bool ggml_validate_row_data(enum ggml_type type, const void * data, size_t nbyte
 }
 
 void repack_q4_0_super_block_hvx(const block_q4_0 * src, void * dst, size_t size);
+void repack_q8_0_super_block_hvx(const block_q8_0 * src, void * dst, size_t size);
 
 // NOTE(hzx): no `restrict` here, may alias
 void repack_q4_0_super_block_hvx(const block_q4_0 * src, void * dst, size_t size) {
@@ -5281,5 +5282,32 @@ void repack_q4_0_super_block_hvx(const block_q4_0 * src, void * dst, size_t size
         // write quants
         memcpy(p, quants_repacked, QK4_0 / 2 * 8);
         p += QK4_0 / 2 * 8; // advance 128 bytes
+    }
+}
+
+void repack_q8_0_super_block_hvx(const block_q8_0 * src, void * dst, size_t size) {
+    const size_t super_block_size = sizeof(block_q8_0) * 8;
+    assert(size % super_block_size == 0);
+
+    static ggml_fp16_t scales[8];
+    static int8_t quants_repacked[QK8_0 * 8];
+
+    uint8_t *p = (uint8_t *) dst;
+    int64_t n = size / super_block_size;
+    for (int64_t i = 0; i < n; ++i) {
+        // unpack original 8x block_q8_0
+        for (int j = 0; j < 8; ++j) {
+            int64_t blk_idx = i * 8 + j;
+            scales[j] = src[blk_idx].d;
+            memcpy(quants_repacked + j * QK8_0, src[blk_idx].qs, sizeof(src[blk_idx].qs));
+        }
+
+        // write scales
+        memcpy(p, scales, 8 * sizeof(ggml_fp16_t));
+        p += 8 * sizeof(ggml_fp16_t); // advance 16 bytes
+
+        // write quants
+        memcpy(p, quants_repacked, sizeof(quants_repacked));
+        p += sizeof(quants_repacked); // advance 256 bytes
     }
 }
