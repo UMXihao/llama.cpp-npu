@@ -5239,6 +5239,7 @@ bool ggml_validate_row_data(enum ggml_type type, const void * data, size_t nbyte
 
 void repack_q4_0_super_block_hvx(const block_q4_0 * src, void * dst, size_t size);
 void repack_q8_0_super_block_hvx(const block_q8_0 * src, void * dst, size_t size);
+void repack_iq4_nl_super_block_hvx(const block_iq4_nl * src, void * dst, size_t size);
 
 // NOTE(hzx): no `restrict` here, may alias
 void repack_q4_0_super_block_hvx(const block_q4_0 * src, void * dst, size_t size) {
@@ -5310,4 +5311,9 @@ void repack_q8_0_super_block_hvx(const block_q8_0 * src, void * dst, size_t size
         memcpy(p, quants_repacked, sizeof(quants_repacked));
         p += sizeof(quants_repacked); // advance 256 bytes
     }
+}
+
+// NOTE(hzx): This relies on block_q4_0 and block_iq4_nl having the same layout
+void repack_iq4_nl_super_block_hvx(const block_iq4_nl * src, void * dst, size_t size) {
+    repack_q4_0_super_block_hvx((const block_q4_0 *) src, dst, size);
 }

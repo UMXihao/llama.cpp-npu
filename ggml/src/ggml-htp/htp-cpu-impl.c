@@ -12302,7 +12302,11 @@ static void ggml_compute_forward(struct ggml_compute_params * params, struct ggm
             } break;
         case GGML_OP_FLASH_ATTN_EXT:
             {
-                ggml_compute_forward_flash_attn_ext(params, tensor->src[0], tensor->src[1], tensor->src[2], tensor->src[3], tensor);
+                if (htp_ops_support_op(tensor)) {
+                    htp_ops_compute_op(params, tensor);
+                } else {
+                    ggml_compute_forward_flash_attn_ext(params, tensor->src[0], tensor->src[1], tensor->src[2], tensor->src[3], tensor);
+                }
             } break;
         case GGML_OP_FLASH_ATTN_BACK:
             {
@@ -12592,7 +12596,7 @@ static bool ggml_thread_apply_priority(int32_t prio) {
     return true;
 }
 
-#elif defined(__gnu_linux__)
+#elif defined(__gnu_linux__) || (defined(__linux__) && defined(__ANDROID__))
 // TODO: this may not work on BSD, to be verified
 
 static bool ggml_thread_apply_affinity(const bool * mask) {
@@ -12621,6 +12625,7 @@ static bool ggml_thread_apply_affinity(const bool * mask) {
         return false;
     }
 
+    // fprintf(stderr, "%s: set affinity mask val 0x%016llx\n", __func__, *(const unsigned long long *) mask);
     return true;
 }
 
@@ -12768,6 +12773,10 @@ static thread_ret_t ggml_graph_compute_thread(void * data) {
         /*.threadpool=*/ tp,
     };
 
+    int64_t t0 = ggml_time_us();
+    int64_t npu_us = 0;
+    int64_t cpu_us = 0;
+
     for (int node_n = 0; node_n < cgraph->n_nodes && !tp->abort; node_n++) {
         struct ggml_tensor * node = cgraph->nodes[node_n];
 
@@ -12775,9 +12784,11 @@ static thread_ret_t ggml_graph_compute_thread(void * data) {
         //     fprintf(stderr, "preparing to compute node %d %s\n", node_n, node->name);
         // }
 
-        if (state->ith == 0) {
-            prepare_tensor_rpcmem_mapping(node);
-        }
+        // if (state->ith == 0) {
+        //     prepare_tensor_rpcmem_mapping(node);
+        // }
+
+        int64_t t1 = ggml_time_us();
 
         ggml_compute_forward(&params, node);
 
@@ -12793,8 +12804,22 @@ static thread_ret_t ggml_graph_compute_thread(void * data) {
         //     uint64_t d = * (uint64_t * )node->data;
         //     fprintf(stderr, "node %d %s, op %s, val %016lx\n", node_n, node->name, ggml_op_name(node->op), d);
         // }
+
+        int64_t elapsed_time = ggml_time_us() - t1;
+        if (state->ith == 0) {
+            // fprintf(stderr, "node %s, op %s, shape (%ld, %ld, %ld, %ld), %ld us\n", node->name, ggml_op_name(node->op), node->ne[0], node->ne[1], node->ne[2], node->ne[3], elapsed_time);
+            if (htp_ops_support_op(node)) {
+                npu_us += elapsed_time;
+            } else {
+                cpu_us += elapsed_time;
+            }
+        }
     }
 
+    int64_t elapsed_us = ggml_time_us() - t0;
+    if (state->ith == 0) {
+        // fprintf(stderr, "HTP: total %ld us, CPU %ld us, NPU %ld us\n", elapsed_us, cpu_us, npu_us);
+    }
     return 0;
 }
 
@@ -13070,6 +13095,14 @@ enum ggml_status ggml_graph_compute_htp_hybrid(struct ggml_cgraph * cgraph, stru
         disposable_threadpool = true;
 
         struct ggml_threadpool_params ttp = ggml_threadpool_params_default(n_threads);
+
+        // NOTE(hzx): we may set ttp.cpumask & ttp.strict_cpu here for thread affinity.
+        // ttp.cpumask[2] = 1;
+        // ttp.cpumask[3] = 1;
+        // ttp.cpumask[4] = 1;
+        // ttp.cpumask[5] = 1;
+        // ttp.strict_cpu = 0;
+
         threadpool = ggml_threadpool_new_impl(&ttp, cgraph, cplan);
     } else {
         // Reset some of the parameters that need resetting

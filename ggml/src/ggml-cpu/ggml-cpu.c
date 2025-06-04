@@ -13214,7 +13214,7 @@ static bool ggml_thread_apply_priority(int32_t prio) {
     return true;
 }
 
-#elif defined(__gnu_linux__)
+#elif defined(__gnu_linux__) || (defined(__linux__) && defined(__ANDROID__))
 // TODO: this may not work on BSD, to be verified
 
 static bool ggml_thread_apply_affinity(const bool * mask) {
@@ -13566,6 +13566,8 @@ struct ggml_cplan ggml_graph_plan(
 }
 
 static thread_ret_t ggml_graph_compute_thread(void * data) {
+    int64_t t1 = ggml_time_us();
+
     struct ggml_compute_state * state = (struct ggml_compute_state *) data;
     struct ggml_threadpool    * tp    = state->threadpool;
 
@@ -13585,6 +13587,8 @@ static thread_ret_t ggml_graph_compute_thread(void * data) {
     for (int node_n = 0; node_n < cgraph->n_nodes && !tp->abort; node_n++) {
         struct ggml_tensor * node = cgraph->nodes[node_n];
 
+        int64_t t0 = ggml_time_us();
+
         ggml_compute_forward(&params, node);
 
         if (state->ith == 0 && cplan->abort_callback &&
@@ -13594,8 +13598,17 @@ static thread_ret_t ggml_graph_compute_thread(void * data) {
         }
 
         ggml_barrier(state->threadpool);
+
+        int64_t elapsed = ggml_time_us() - t0;
+        if (state->ith == 0) {
+            // fprintf(stderr, "GGML-CPU: node %s op %s %ld us\n", node->name, ggml_op_name(node->op), elapsed);
+        }
     }
 
+    int64_t elapsed_us = ggml_time_us() - t1;
+    if (state->ith == 0) {
+        // fprintf(stderr, "CPU: total %ld us\n", elapsed_us);
+    }
     return 0;
 }
 
@@ -13834,6 +13847,12 @@ enum ggml_status ggml_graph_compute(struct ggml_cgraph * cgraph, struct ggml_cpl
         disposable_threadpool = true;
 
         struct ggml_threadpool_params ttp = ggml_threadpool_params_default(n_threads);
+        
+        // ttp.cpumask[2] = 1;
+        // ttp.cpumask[3] = 1;
+        // ttp.cpumask[4] = 1;
+        // ttp.cpumask[5] = 1;
+
         threadpool = ggml_threadpool_new_impl(&ttp, cgraph, cplan);
     } else {
         // Reset some of the parameters that need resetting

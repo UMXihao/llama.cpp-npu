@@ -14,7 +14,7 @@
 #include "ggml-htp-impl.h"
 
 // real backend initialization work is done here. ggml_backend_htp_init is only a wrapper
-ggml_backend_htp_context::ggml_backend_htp_context() : mapper(1024UL * 1024 * 1024, true) {
+ggml_backend_htp_context::ggml_backend_htp_context() : mapper(3 * 1024UL * 1024 * 1024, true) {
     fprintf(stderr, "Initializing HTP backend... (You should see this once)\n");
 
     // rpcmem_init & rpcmem_deinit are actually not required on modern Hexagon processors
@@ -72,8 +72,6 @@ ggml_backend_htp_context::~ggml_backend_htp_context() {
 }
 
 int ggml_backend_htp_context::init_message_channel() {
-    constexpr size_t MAX_MSG_SIZE = 4096;
-
     using create_msg_channel_fn_type = int(int, unsigned int);
 
     auto create_msg_channel =
@@ -199,7 +197,7 @@ static bool ggml_backend_htp_buffer_type_is_host(ggml_backend_buffer_type_t buft
 
 static size_t ggml_backend_htp_buffer_type_get_max_size(ggml_backend_buffer_type_t buft) {
     // TODO(hzx): change max size
-    return 128 * size_t(1024 * 1024);
+    return 256 * size_t(1024 * 1024);
 
     GGML_UNUSED(buft);
 }

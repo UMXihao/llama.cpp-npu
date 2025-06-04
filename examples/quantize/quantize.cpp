@@ -56,6 +56,7 @@ static const std::vector<struct quant_option> QUANT_OPTIONS = {
     // custom quant options
     { "Q4_0+F16", LLAMA_FTYPE_MOSTLY_MIXED_Q4_0_F16, "custom mixed Q4_0 + F16",  },
     { "Q4_0+Q8_0", LLAMA_FTYPE_MOSTLY_MIXED_Q4_0_Q8_0, "custom mixed Q4_0 + Q8_0" },
+    { "IQ4_NL+Q8_0", LLAMA_FTYPE_MOSTLY_MIXED_IQ4_NL_Q8_0, "custom mixed IQ4_NL + Q8_0" },
 };
 
 static const char * const LLM_KV_QUANTIZE_IMATRIX_FILE       = "quantize.imatrix.file";

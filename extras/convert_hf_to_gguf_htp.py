@@ -1676,7 +1676,8 @@ class LlamaModel(Model):
             else:
                 return []
 
-        return [(self.map_tensor_name(name), data_torch)]
+        return super().modify_tensors(data_torch, name, bid)
+        # return [(self.map_tensor_name(name), data_torch)]
 
     def generate_extra_tensors(self) -> Iterable[tuple[str, Tensor]]:
         if rope_scaling := self.find_hparam(["rope_scaling"], optional=True):

@@ -90,7 +90,7 @@ int main(int argc, char ** argv) {
 
     // warm up
     {
-        for (int i = 0; i < 16; ++i) {
+        for (int i = 0; i < 36; ++i) {
             common_batch_add(batch, 0, i, { 0 }, false);
         }
 
@@ -153,7 +153,8 @@ int main(int argc, char ** argv) {
                     common_batch_clear(batch);
 
                     for (int j = 0; j < pl; ++j) {
-                        common_batch_add(batch, 0, pp + i, { j }, true);
+                        // common_batch_add(batch, 0, pp + i, { j }, true);
+                        common_batch_add(batch, rand() % 30000, pp + i, { j }, true);
                     }
 
                     if (!decode_helper(ctx, batch, ctx_params.n_batch)) {
