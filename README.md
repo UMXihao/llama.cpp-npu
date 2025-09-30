@@ -1,507 +1,213 @@
-# llama.cpp
-
-![llama](https://user-images.githubusercontent.com/1991296/230134379-7181e485-c521-4d23-a0d6-f7b3b61ba524.png)
-
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Server](https://github.com/ggerganov/llama.cpp/actions/workflows/server.yml/badge.svg)](https://github.com/ggerganov/llama.cpp/actions/workflows/server.yml)
-
-[Roadmap](https://github.com/users/ggerganov/projects/7) / [Project status](https://github.com/ggerganov/llama.cpp/discussions/3471) / [Manifesto](https://github.com/ggerganov/llama.cpp/discussions/205) / [ggml](https://github.com/ggerganov/ggml)
-
-Inference of Meta's [LLaMA](https://arxiv.org/abs/2302.13971) model (and others) in pure C/C++
-
-## Recent API changes
-
-- [Changelog for `libllama` API](https://github.com/ggerganov/llama.cpp/issues/9289)
-- [Changelog for `llama-server` REST API](https://github.com/ggerganov/llama.cpp/issues/9291)
-
-## Hot topics
-
-- **Introducing GGUF-my-LoRA** https://github.com/ggerganov/llama.cpp/discussions/10123
-- Hugging Face Inference Endpoints now support GGUF out of the box! https://github.com/ggerganov/llama.cpp/discussions/9669
-- Hugging Face GGUF editor: [discussion](https://github.com/ggerganov/llama.cpp/discussions/9268) | [tool](https://huggingface.co/spaces/CISCai/gguf-editor)
-
-----
-
-## Description
-
-The main goal of `llama.cpp` is to enable LLM inference with minimal setup and state-of-the-art performance on a wide
-range of hardware - locally and in the cloud.
-
-- Plain C/C++ implementation without any dependencies
-- Apple silicon is a first-class citizen - optimized via ARM NEON, Accelerate and Metal frameworks
-- AVX, AVX2, AVX512 and AMX support for x86 architectures
-- 1.5-bit, 2-bit, 3-bit, 4-bit, 5-bit, 6-bit, and 8-bit integer quantization for faster inference and reduced memory use
-- Custom CUDA kernels for running LLMs on NVIDIA GPUs (support for AMD GPUs via HIP and Moore Threads MTT GPUs via MUSA)
-- Vulkan and SYCL backend support
-- CPU+GPU hybrid inference to partially accelerate models larger than the total VRAM capacity
-
-The `llama.cpp` project is the main playground for developing new features for the [ggml](https://github.com/ggerganov/ggml) library.
-
-<details>
-<summary>Models</summary>
-
-Typically finetunes of the base models below are supported as well.
-
-Instructions for adding support for new models: [HOWTO-add-model.md](docs/development/HOWTO-add-model.md)
-
-#### Text-only
-
-- [X] LLaMA 🦙
-- [x] LLaMA 2 🦙🦙
-- [x] LLaMA 3 🦙🦙🦙
-- [X] [Mistral 7B](https://huggingface.co/mistralai/Mistral-7B-v0.1)
-- [x] [Mixtral MoE](https://huggingface.co/models?search=mistral-ai/Mixtral)
-- [x] [DBRX](https://huggingface.co/databricks/dbrx-instruct)
-- [X] [Falcon](https://huggingface.co/models?search=tiiuae/falcon)
-- [X] [Chinese LLaMA / Alpaca](https://github.com/ymcui/Chinese-LLaMA-Alpaca) and [Chinese LLaMA-2 / Alpaca-2](https://github.com/ymcui/Chinese-LLaMA-Alpaca-2)
-- [X] [Vigogne (French)](https://github.com/bofenghuang/vigogne)
-- [X] [BERT](https://github.com/ggerganov/llama.cpp/pull/5423)
-- [X] [Koala](https://bair.berkeley.edu/blog/2023/04/03/koala/)
-- [X] [Baichuan 1 & 2](https://huggingface.co/models?search=baichuan-inc/Baichuan) + [derivations](https://huggingface.co/hiyouga/baichuan-7b-sft)
-- [X] [Aquila 1 & 2](https://huggingface.co/models?search=BAAI/Aquila)
-- [X] [Starcoder models](https://github.com/ggerganov/llama.cpp/pull/3187)
-- [X] [Refact](https://huggingface.co/smallcloudai/Refact-1_6B-fim)
-- [X] [MPT](https://github.com/ggerganov/llama.cpp/pull/3417)
-- [X] [Bloom](https://github.com/ggerganov/llama.cpp/pull/3553)
-- [x] [Yi models](https://huggingface.co/models?search=01-ai/Yi)
-- [X] [StableLM models](https://huggingface.co/stabilityai)
-- [x] [Deepseek models](https://huggingface.co/models?search=deepseek-ai/deepseek)
-- [x] [Qwen models](https://huggingface.co/models?search=Qwen/Qwen)
-- [x] [PLaMo-13B](https://github.com/ggerganov/llama.cpp/pull/3557)
-- [x] [Phi models](https://huggingface.co/models?search=microsoft/phi)
-- [x] [GPT-2](https://huggingface.co/gpt2)
-- [x] [Orion 14B](https://github.com/ggerganov/llama.cpp/pull/5118)
-- [x] [InternLM2](https://huggingface.co/models?search=internlm2)
-- [x] [CodeShell](https://github.com/WisdomShell/codeshell)
-- [x] [Gemma](https://ai.google.dev/gemma)
-- [x] [Mamba](https://github.com/state-spaces/mamba)
-- [x] [Grok-1](https://huggingface.co/keyfan/grok-1-hf)
-- [x] [Xverse](https://huggingface.co/models?search=xverse)
-- [x] [Command-R models](https://huggingface.co/models?search=CohereForAI/c4ai-command-r)
-- [x] [SEA-LION](https://huggingface.co/models?search=sea-lion)
-- [x] [GritLM-7B](https://huggingface.co/GritLM/GritLM-7B) + [GritLM-8x7B](https://huggingface.co/GritLM/GritLM-8x7B)
-- [x] [OLMo](https://allenai.org/olmo)
-- [x] [OLMo 2](https://allenai.org/olmo)
-- [x] [OLMoE](https://huggingface.co/allenai/OLMoE-1B-7B-0924)
-- [x] [Granite models](https://huggingface.co/collections/ibm-granite/granite-code-models-6624c5cec322e4c148c8b330)
-- [x] [GPT-NeoX](https://github.com/EleutherAI/gpt-neox) + [Pythia](https://github.com/EleutherAI/pythia)
-- [x] [Snowflake-Arctic MoE](https://huggingface.co/collections/Snowflake/arctic-66290090abe542894a5ac520)
-- [x] [Smaug](https://huggingface.co/models?search=Smaug)
-- [x] [Poro 34B](https://huggingface.co/LumiOpen/Poro-34B)
-- [x] [Bitnet b1.58 models](https://huggingface.co/1bitLLM)
-- [x] [Flan T5](https://huggingface.co/models?search=flan-t5)
-- [x] [Open Elm models](https://huggingface.co/collections/apple/openelm-instruct-models-6619ad295d7ae9f868b759ca)
-- [x] [ChatGLM3-6b](https://huggingface.co/THUDM/chatglm3-6b) + [ChatGLM4-9b](https://huggingface.co/THUDM/glm-4-9b)
-- [x] [SmolLM](https://huggingface.co/collections/HuggingFaceTB/smollm-6695016cad7167254ce15966)
-- [x] [EXAONE-3.0-7.8B-Instruct](https://huggingface.co/LGAI-EXAONE/EXAONE-3.0-7.8B-Instruct)
-- [x] [FalconMamba Models](https://huggingface.co/collections/tiiuae/falconmamba-7b-66b9a580324dd1598b0f6d4a)
-- [x] [Jais](https://huggingface.co/inceptionai/jais-13b-chat)
-- [x] [Bielik-11B-v2.3](https://huggingface.co/collections/speakleash/bielik-11b-v23-66ee813238d9b526a072408a)
-- [x] [RWKV-6](https://github.com/BlinkDL/RWKV-LM)
-- [x] [GigaChat-20B-A3B](https://huggingface.co/ai-sage/GigaChat-20B-A3B-instruct)
-
-#### Multimodal
-
-- [x] [LLaVA 1.5 models](https://huggingface.co/collections/liuhaotian/llava-15-653aac15d994e992e2677a7e), [LLaVA 1.6 models](https://huggingface.co/collections/liuhaotian/llava-16-65b9e40155f60fd046a5ccf2)
-- [x] [BakLLaVA](https://huggingface.co/models?search=SkunkworksAI/Bakllava)
-- [x] [Obsidian](https://huggingface.co/NousResearch/Obsidian-3B-V0.5)
-- [x] [ShareGPT4V](https://huggingface.co/models?search=Lin-Chen/ShareGPT4V)
-- [x] [MobileVLM 1.7B/3B models](https://huggingface.co/models?search=mobileVLM)
-- [x] [Yi-VL](https://huggingface.co/models?search=Yi-VL)
-- [x] [Mini CPM](https://huggingface.co/models?search=MiniCPM)
-- [x] [Moondream](https://huggingface.co/vikhyatk/moondream2)
-- [x] [Bunny](https://github.com/BAAI-DCAI/Bunny)
-- [x] [Qwen2-VL](https://huggingface.co/collections/Qwen/qwen2-vl-66cee7455501d7126940800d)
-
-</details>
-
-<details>
-<summary>Bindings</summary>
-
-- Python: [abetlen/llama-cpp-python](https://github.com/abetlen/llama-cpp-python)
-- Go: [go-skynet/go-llama.cpp](https://github.com/go-skynet/go-llama.cpp)
-- Node.js: [withcatai/node-llama-cpp](https://github.com/withcatai/node-llama-cpp)
-- JS/TS (llama.cpp server client): [lgrammel/modelfusion](https://modelfusion.dev/integration/model-provider/llamacpp)
-- JS/TS (Programmable Prompt Engine CLI): [offline-ai/cli](https://github.com/offline-ai/cli)
-- JavaScript/Wasm (works in browser): [tangledgroup/llama-cpp-wasm](https://github.com/tangledgroup/llama-cpp-wasm)
-- Typescript/Wasm (nicer API, available on npm): [ngxson/wllama](https://github.com/ngxson/wllama)
-- Ruby: [yoshoku/llama_cpp.rb](https://github.com/yoshoku/llama_cpp.rb)
-- Rust (more features): [edgenai/llama_cpp-rs](https://github.com/edgenai/llama_cpp-rs)
-- Rust (nicer API): [mdrokz/rust-llama.cpp](https://github.com/mdrokz/rust-llama.cpp)
-- Rust (more direct bindings): [utilityai/llama-cpp-rs](https://github.com/utilityai/llama-cpp-rs)
-- C#/.NET: [SciSharp/LLamaSharp](https://github.com/SciSharp/LLamaSharp)
-- C#/VB.NET (more features - community license): [LM-Kit.NET](https://docs.lm-kit.com/lm-kit-net/index.html)
-- Scala 3: [donderom/llm4s](https://github.com/donderom/llm4s)
-- Clojure: [phronmophobic/llama.clj](https://github.com/phronmophobic/llama.clj)
-- React Native: [mybigday/llama.rn](https://github.com/mybigday/llama.rn)
-- Java: [kherud/java-llama.cpp](https://github.com/kherud/java-llama.cpp)
-- Zig: [deins/llama.cpp.zig](https://github.com/Deins/llama.cpp.zig)
-- Flutter/Dart: [netdur/llama_cpp_dart](https://github.com/netdur/llama_cpp_dart)
-- Flutter: [xuegao-tzx/Fllama](https://github.com/xuegao-tzx/Fllama)
-- PHP (API bindings and features built on top of llama.cpp): [distantmagic/resonance](https://github.com/distantmagic/resonance) [(more info)](https://github.com/ggerganov/llama.cpp/pull/6326)
-- Guile Scheme: [guile_llama_cpp](https://savannah.nongnu.org/projects/guile-llama-cpp)
-- Swift [srgtuszy/llama-cpp-swift](https://github.com/srgtuszy/llama-cpp-swift)
-- Swift [ShenghaiWang/SwiftLlama](https://github.com/ShenghaiWang/SwiftLlama)
-
-</details>
-
-<details>
-<summary>UIs</summary>
-
-*(to have a project listed here, it should clearly state that it depends on `llama.cpp`)*
-
-- [AI Sublime Text plugin](https://github.com/yaroslavyaroslav/OpenAI-sublime-text) (MIT)
-- [cztomsik/ava](https://github.com/cztomsik/ava) (MIT)
-- [Dot](https://github.com/alexpinel/Dot) (GPL)
-- [eva](https://github.com/ylsdamxssjxxdd/eva) (MIT)
-- [iohub/collama](https://github.com/iohub/coLLaMA) (Apache-2.0)
-- [janhq/jan](https://github.com/janhq/jan) (AGPL)
-- [KanTV](https://github.com/zhouwg/kantv?tab=readme-ov-file) (Apache-2.0)
-- [KodiBot](https://github.com/firatkiral/kodibot) (GPL)
-- [llama.vim](https://github.com/ggml-org/llama.vim) (MIT)
-- [LARS](https://github.com/abgulati/LARS) (AGPL)
-- [Llama Assistant](https://github.com/vietanhdev/llama-assistant) (GPL)
-- [LLMFarm](https://github.com/guinmoon/LLMFarm?tab=readme-ov-file) (MIT)
-- [LLMUnity](https://github.com/undreamai/LLMUnity) (MIT)
-- [LMStudio](https://lmstudio.ai/) (proprietary)
-- [LocalAI](https://github.com/mudler/LocalAI) (MIT)
-- [LostRuins/koboldcpp](https://github.com/LostRuins/koboldcpp) (AGPL)
-- [MindMac](https://mindmac.app) (proprietary)
-- [MindWorkAI/AI-Studio](https://github.com/MindWorkAI/AI-Studio) (FSL-1.1-MIT)
-- [Mobile-Artificial-Intelligence/maid](https://github.com/Mobile-Artificial-Intelligence/maid) (MIT)
-- [Mozilla-Ocho/llamafile](https://github.com/Mozilla-Ocho/llamafile) (Apache-2.0)
-- [nat/openplayground](https://github.com/nat/openplayground) (MIT)
-- [nomic-ai/gpt4all](https://github.com/nomic-ai/gpt4all) (MIT)
-- [ollama/ollama](https://github.com/ollama/ollama) (MIT)
-- [oobabooga/text-generation-webui](https://github.com/oobabooga/text-generation-webui) (AGPL)
-- [PocketPal AI](https://github.com/a-ghorbani/pocketpal-ai) (MIT)
-- [psugihara/FreeChat](https://github.com/psugihara/FreeChat) (MIT)
-- [ptsochantaris/emeltal](https://github.com/ptsochantaris/emeltal) (MIT)
-- [pythops/tenere](https://github.com/pythops/tenere) (AGPL)
-- [ramalama](https://github.com/containers/ramalama) (MIT)
-- [semperai/amica](https://github.com/semperai/amica) (MIT)
-- [withcatai/catai](https://github.com/withcatai/catai) (MIT)
-
-</details>
-
-<details>
-<summary>Tools</summary>
-
-- [akx/ggify](https://github.com/akx/ggify) – download PyTorch models from HuggingFace Hub and convert them to GGML
-- [akx/ollama-dl](https://github.com/akx/ollama-dl) – download models from the Ollama library to be used directly with llama.cpp
-- [crashr/gppm](https://github.com/crashr/gppm) – launch llama.cpp instances utilizing NVIDIA Tesla P40 or P100 GPUs with reduced idle power consumption
-- [gpustack/gguf-parser](https://github.com/gpustack/gguf-parser-go/tree/main/cmd/gguf-parser) - review/check the GGUF file and estimate the memory usage
-- [Styled Lines](https://marketplace.unity.com/packages/tools/generative-ai/styled-lines-llama-cpp-model-292902) (proprietary licensed, async wrapper of inference part for game development in Unity3d with pre-built Mobile and Web platform wrappers and a model example)
-
-</details>
-
-<details>
-<summary>Infrastructure</summary>
-
-- [Paddler](https://github.com/distantmagic/paddler) - Stateful load balancer custom-tailored for llama.cpp
-- [GPUStack](https://github.com/gpustack/gpustack) - Manage GPU clusters for running LLMs
-- [llama_cpp_canister](https://github.com/onicai/llama_cpp_canister) - llama.cpp as a smart contract on the Internet Computer, using WebAssembly
-
-</details>
-
-<details>
-<summary>Games</summary>
-
-- [Lucy's Labyrinth](https://github.com/MorganRO8/Lucys_Labyrinth) - A simple maze game where agents controlled by an AI model will try to trick you.
-
-</details>
-
-## Supported backends
-
-| Backend | Target devices |
-| --- | --- |
-| [Metal](docs/build.md#metal-build) | Apple Silicon |
-| [BLAS](docs/build.md#blas-build) | All |
-| [BLIS](docs/backend/BLIS.md) | All |
-| [SYCL](docs/backend/SYCL.md) | Intel and Nvidia GPU |
-| [MUSA](docs/build.md#musa) | Moore Threads MTT GPU |
-| [CUDA](docs/build.md#cuda) | Nvidia GPU |
-| [HIP](docs/build.md#hip) | AMD GPU |
-| [Vulkan](docs/build.md#vulkan) | GPU |
-| [CANN](docs/build.md#cann) | Ascend NPU |
+# llama.cpp with custom Hexagon NPU backend
 
-## Building the project
+This is the code repository for the paper [Scaling LLM Test-Time Compute with Mobile NPU on Smartphones](https://arxiv.org/abs/2509.23324), which supports using the Hexagon NPU on Qualcomm Snapdragon SoCs for LLM inference. This project is primarily a research prototype and is not intended for production environments.
 
-The main product of this project is the `llama` library. Its C-style interface can be found in [include/llama.h](include/llama.h).
-The project also includes many example programs and tools using the `llama` library. The examples range from simple, minimal code snippets to sophisticated sub-projects such as an OpenAI-compatible HTTP server. Possible methods for obtaining the binaries:
+This project consists of two components: one based on llama.cpp (this repository) and an independent operator library [HTP-Ops-lib](https://github.com/haozixu/htp-ops-lib). We assume that users perform cross-compilation on a Linux host to generate executable for Android devices.
 
-- Clone this repository and build locally, see [how to build](docs/build.md)
-- On MacOS or Linux, install `llama.cpp` via [brew, flox or nix](docs/install.md)
-- Use a Docker image, see [documentation for Docker](docs/docker.md)
-- Download pre-built binaries from [releases](https://github.com/ggerganov/llama.cpp/releases)
+**Hardware requirements**: Android phones with Qualcomm Snapdragon 8 Gen 2 or higher SoC
 
-## Obtaining and quantizing models
+**Software requirements**: CMake, Android NDK, Hexagon SDK 6.x (verified version: 6.0.0.2), Python environment required by llama.cpp
 
-The [Hugging Face](https://huggingface.co) platform hosts a [number of LLMs](https://huggingface.co/models?library=gguf&sort=trending) compatible with `llama.cpp`:
+## Getting Started
 
-- [Trending](https://huggingface.co/models?library=gguf&sort=trending)
-- [LLaMA](https://huggingface.co/models?sort=trending&search=llama+gguf)
+### Program Compilation
 
-After downloading a model, use the CLI tools to run it locally - see below.
+#### llama.cpp (this repository)
 
-`llama.cpp` requires the model to be stored in the [GGUF](https://github.com/ggerganov/ggml/blob/master/docs/gguf.md) file format. Models in other data formats can be converted to GGUF using the `convert_*.py` Python scripts in this repo.
+The compilation process here is basically the same as that of llama.cpp; see the relevant documentation for details. However, this project includes the following key options when configuring cmake:
 
-The Hugging Face platform provides a variety of online tools for converting, quantizing and hosting models with `llama.cpp`:
++ `-DGGML_HTP=ON`: Enables the Hexagon NPU backend, enabled by default. HTP is the abbreviation for Hexagon Tensor Processor.
++ `-DGGML_OPENMP=OFF`: Disables OpenMP support. Currently, some CPU-related implementations in the NPU hybrid backend are incompatible with OpenMP; please ensure OpenMP is disabled.
 
-- Use the [GGUF-my-repo space](https://huggingface.co/spaces/ggml-org/gguf-my-repo) to convert to GGUF format and quantize model weights to smaller sizes
-- Use the [GGUF-my-LoRA space](https://huggingface.co/spaces/ggml-org/gguf-my-lora) to convert LoRA adapters to GGUF format (more info: https://github.com/ggerganov/llama.cpp/discussions/10123)
-- Use the [GGUF-editor space](https://huggingface.co/spaces/CISCai/gguf-editor) to edit GGUF meta data in the browser (more info: https://github.com/ggerganov/llama.cpp/discussions/9268)
-- Use the [Inference Endpoints](https://ui.endpoints.huggingface.co/) to directly host `llama.cpp` in the cloud (more info: https://github.com/ggerganov/llama.cpp/discussions/9669)
+Optional options:
 
-To learn more about model quantization, [read this documentation](examples/quantize/README.md)
++ `-DBUILD_SHARED_LIBS=OFF`: Don't generate shared libraries. This can reduce the number of dynamic link libraries that need to be copied to the device but will increase the size of the executables.
 
-## [`llama-cli`](examples/main)
+The following shows a complete cross-compilation process:
 
-#### A CLI tool for accessing and experimenting with most of `llama.cpp`'s functionality.
+1. Create a build directory
 
-- <details open>
-    <summary>Run simple text completion</summary>
+```sh
+mkdir -p build; cd build
+```
 
-    ```bash
-    llama-cli -m model.gguf -p "I believe the meaning of life is" -n 128
+2. Perform CMake configuration, ensuring that the environment variable `ANDROID_NDK` corresponding to the Android NDK is set
 
-    # I believe the meaning of life is to find your own truth and to live in accordance with it. For me, this means being true to myself and following my passions, even if they don't align with societal expectations. I think that's what I love about yoga – it's not just a physical practice, but a spiritual one too. It's about connecting with yourself, listening to your inner voice, and honoring your own unique journey.
-    ```
+```sh
+cmake .. -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-26 -DGGML_HTP=ON -DGGML_OPENMP=OFF
+```
 
-    </details>
+3. Compile `llama-cli` and `llama-quantize` (to be used later)
 
-- <details>
-    <summary>Run in conversation mode</summary>
+```sh
+make -j llama-cli llama-quantize
+```
 
-    ```bash
-    llama-cli -m model.gguf -p "You are a helpful assistant" -cnv
+After compilation, you should be able to find the executable programs `llama-cli` and `llama-quantize` in the `build/bin` directory. If you did not set `BUILD_SHARED_LIBS` to `OFF` during cmake configuration, you also need to pay attention to the following files:
 
-    # > hi, who are you?
-    # Hi there! I'm your helpful assistant! I'm an AI-powered chatbot designed to assist and provide information to users like you. I'm here to help answer your questions, provide guidance, and offer support on a wide range of topics. I'm a friendly and knowledgeable AI, and I'm always happy to help with anything you need. What's on your mind, and how can I assist you today?
-    #
-    # > what is 1+1?
-    # Easy peasy! The answer to 1+1 is... 2!
-    ```
+- `build/src/libllama.so` 
+- `build/ggml/libggml.so`
+- `build/ggml/libggml-base.so`
+- `build/ggml/libggml-cpu.so`
+- `build/ggml/src/ggml-htp/libggml-htp.so`
 
-    </details>
+#### The operator library
 
-- <details>
-    <summary>Run with custom chat template</summary>
+Detailed documentation can be found in [HTP-Ops-lib](https://github.com/haozixu/htp-ops-lib); here is a brief introduction to the build process.
 
-    ```bash
-    # use the "chatml" template
-    llama-cli -m model.gguf -p "You are a helpful assistant" -cnv --chat-template chatml
+1. First, ensure the Hexagon SDK environment is set up. Run the following command in the root directory of the Hexagon SDK:
 
-    # use a custom template
-    llama-cli -m model.gguf -p "You are a helpful assistant" -cnv --in-prefix 'User: ' --reverse-prompt 'User:'
-    ```
+```sh
+source setup_sdk_env.source
+```
 
-    [Supported templates](https://github.com/ggerganov/llama.cpp/wiki/Templates-supported-by-llama_chat_apply_template)
+2. Clone the project
 
-    </details>
+```sh
+git clone https://github.com/haozixu/htp-ops-lib; cd htp-ops-lib
+```
 
-- <details>
-    <summary>Constrain the output with a custom grammar</summary>
+3. Execute the following **two** commands in the root directory of the operator library:
 
-    ```bash
-    llama-cli -m model.gguf -n 256 --grammar-file grammars/json.gbnf -p 'Request: schedule a call at 8pm; Command:'
+```sh
+build_cmake android
+build_cmake hexagon DSP_ARCH=v73
+```
 
-    # {"appointmentTime": "8pm", "appointmentDetails": "schedule a a call"}
-    ```
+Here, `DSP_ARCH` specifies the target Hexagon NPU architecture version. We recommend using `v73` by default for better compatibility. (The NPU architecture version on Snapdragon 8 Gen 2 is v73; you can modify this option according to your target hardware.)
 
-    The [grammars/](grammars/) folder contains a handful of sample grammars. To write your own, check out the [GBNF Guide](grammars/README.md).
+After compilation, you should see two directories: `android_ReleaseG_aarch64` and `hexagon_ReleaseG_toolv87_v73` (the actual names may vary depending on the compilation mode, specific toolchain, and target architecture version). Note the following two products:
 
-    For authoring more complex JSON grammars, check out https://grammar.intrinsiclabs.ai/
+- `android_ReleaseG_aarch64/libhtp_ops.so`
+- `hexagon_ReleaseG_toolv87_v73/libhtp_ops_skel.so`
 
-    </details>
+These two shared objects will be used later. In FastRPC terminology, they are the Stub (`libhtp_ops.so`) and Skeleton (`libhtp_ops_skel.so`) respectively. You can use `ldd` to distinguish between the two shared objects: `libhtp_ops.so` targets the AArch64 architecture and runs on the CPU; `libhtp_ops_skel.so` targets the Q6DSP architecture and runs on the Hexagon NPU (cDSP).
 
+### Model Conversion
 
-## [`llama-server`](examples/server)
+We use a modified `convert_hf_to_gguf.py` conversion script, which is located at `extras/convert_hf_to_gguf_htp.py`. You need to check `pyproject.toml` or `requirements.txt` to ensure that the dependencies required by llama.cpp's Python scripts are installed. The basic usage of this script is the same as the original version, and you also need to prepare weight files from HuggingFace.
 
-#### A lightweight, [OpenAI API](https://github.com/openai/openai-openapi) compatible, HTTP server for serving LLMs.
+Currently, this script supports some Qwen and Llama models. To support more models, you can refer to the `modify_tensors` method of the `Model` base class in the script (this method rearranges weights according to the layout requirements of the FP16 HMX unit):
 
-- <details open>
-    <summary>Start a local HTTP server with default configuration on port 8080</summary>
+```Python
+def modify_tensors(self, data_torch: Tensor, name: str, bid: int | None) -> Iterable[tuple[str, Tensor]]:
+    new_name = self.map_tensor_name(name)
+    if any(self.match_model_tensor_name(new_name, key, bid) for key in [
+        gguf.MODEL_TENSOR.ATTN_Q,
+        gguf.MODEL_TENSOR.ATTN_K,
+        gguf.MODEL_TENSOR.ATTN_V,
+        gguf.MODEL_TENSOR.ATTN_OUT,
+        gguf.MODEL_TENSOR.FFN_UP,
+        gguf.MODEL_TENSOR.FFN_DOWN,
+        gguf.MODEL_TENSOR.FFN_GATE,
+    ]):
+        mat_shape = data_torch.shape
+        assert len(mat_shape) == 2
 
-    ```bash
-    llama-server -m model.gguf --port 8080
+        n, k = mat_shape
+        assert n % 32 == 0 and k % 32 == 0
 
-    # Basic web UI can be accessed via browser: http://localhost:8080
-    # Chat completion endpoint: http://localhost:8080/v1/chat/completions
-    ```
+        n_chunks, k_chunks = n // 32, k // 32
+        x = data_torch.view(n_chunks, 32, k_chunks, 32)
+        x = x.permute(0, 2, 1, 3).contiguous() # shape: [n_chunks, k_chunks, 32, 32]
 
-    </details>
+        y = x.view(n_chunks, k_chunks, 32, 16, 2).permute(0, 1, 3, 2, 4).contiguous()
 
-- <details>
-    <summary>Support multiple-users and parallel decoding</summary>
+        data_torch = y.view(n, k)
 
-    ```bash
-    # up to 4 concurrent requests, each with 4096 max context
-    llama-server -m model.gguf -c 16384 -np 4
-    ```
+    return [(new_name, data_torch)]
+```
 
-    </details>
+Taking Qwen2.5-1.5B as an example, use the following command to generate FP16 GGUF weights required by Hexagon NPU HMX:
 
-- <details>
-    <summary>Enable speculative decoding</summary>
+```sh
+python extras/convert_hf_to_gguf_htp.py --outfile qwen2.5-1.5b.f16-hmx.gguf --outtype f16 $path_to_hf_model
+```
 
-    ```bash
-    # the draft.gguf model should be a small variant of the target model.gguf
-    llama-server -m model.gguf -md draft.gguf
-    ```
+### Quantizing the Model
 
-    </details>
+This step requires the compiled `llama-quantize`. This step does not need to be done on the Android device; you can use `llama-quantize` on the host.
 
-- <details>
-    <summary>Serve an embedding model</summary>
+The current backend operator library supports weight matrix quantization types including `Q4_0`, `IQ4_NL`, `Q8_0`, and `F16`. In the current implementation, `IQ4_NL` has higher precision than `Q4_0` but with the same computational overhead. We have preset a hybrid quantization scheme of `IQ4_NL` and `Q8_0`. An example of the model quantization command using this recommended scheme is as follows:
 
-    ```bash
-    # use the /embedding endpoint
-    llama-server -m model.gguf --embedding --pooling cls -ub 8192
-    ```
+```sh
+REPACK_FOR_HVX=1 ./build/bin/llama-quantize qwen2.5-1.5b.f16-hmx.gguf qwen2.5-1.5b.iq4_nl+q8_0-hmx.gguf IQ4_NL+Q8_0
+```
 
-    </details>
+Note that running this command requires setting the environment variable `REPACK_FOR_HVX` to enable weight rearrangement for HVX.
 
-- <details>
-    <summary>Serve a reranking model</summary>
+### Running the Program
 
-    ```bash
-    # use the /reranking endpoint
-    llama-server -m model.gguf --reranking
-    ```
+It is assumed that the Android device is connected via adb (Termux is an alternative but we recommend adb; root permission may be required in termux). The following commands are all run on the device.
 
-    </details>
+First, create a workspace where all required files will be placed:
 
-- <details>
-    <summary>Constrain all outputs with a grammar</summary>
+```sh
+mkdir -p /data/local/tmp/llama.cpp; cd /data/local/tmp/llama.cpp
+```
 
-    ```bash
-    # custom grammar
-    llama-server -m model.gguf --grammar-file grammar.gbnf
+To perform LLM inference on the device, transfer the produced files from the above steps to the Android device, including:
 
-    # JSON
-    llama-server -m model.gguf --grammar-file grammars/json.gbnf
-    ```
+- Quantized model GGUF file (e.g., `qwen2.5-1.5b.iq4_nl+q8_0-hmx.gguf`)
+- Executable programs (e.g., `llama-cli`)
+- Necessary dynamic-linked libraries (e.g., `libhtp_ops.so`, `libhtp_ops_skel.so` and possible llama.cpp shared objects)
 
-    </details>
+Set the following two environment variables to the current workspace:
 
+- `LD_LIBRARY_PATH=/data/local/tmp/llama.cpp`
+- `DSP_LIBRARY_PATH=/data/local/tmp/llama.cpp`
 
-## [`llama-perplexity`](examples/perplexity)
+Run `llama-cli`:
 
-#### A tool for measuring the perplexity [^1][^2] (and other quality metrics) of a model over a given text.
+```sh
+LD_LIBRARY_PATH=/data/local/tmp/llama.cpp DSP_LIBRARY_PATH=/data/local/tmp/llama.cpp ./llama-cli -t 4 -fa -m qwen2.5-1.5b.iq4_nl+q8_0-hmx.gguf -p "Hello my name is"
+```
 
-- <details open>
-    <summary>Measure the perplexity over a text file</summary>
+The `-fa` option is set here to enable the FlashAttention kernel.
 
-    ```bash
-    llama-perplexity -m model.gguf -f file.txt
+## Known Issues
 
-    # [1]15.2701,[2]5.4007,[3]5.3073,[4]6.2965,[5]5.8940,[6]5.6096,[7]5.7942,[8]4.9297, ...
-    # Final estimate: PPL = 5.4007 +/- 0.67339
-    ```
+1. Currently, the size of models that can run on the device is limited; we recommend using models below 4B. This is mainly because the Hexagon cDSP (NPU) is a 32-bit processor with a 32-bit virtual address space. Our current design uses a single NPU session, and the dynamic virtual address mapping/unmapping scheme faces some limitations (see https://github.com/quic/fastrpc/issues/137 for details). QNN uses multiple NPU sessions to avoid this issue, which we have not yet supported.
 
-    </details>
+2. For stability reasons, the upstream llama.cpp version used in this repository is somewhat outdated. Developers can migrate the HTP backend to the new upstream llama.cpp code by themselves. (Note: The CPU operator implementation in the current HTP backend directly reuses the CPU backend implementation; careful refactoring is required to avoid conflicts.)
 
-- <details>
-    <summary>Measure KL divergence</summary>
+## Troubleshooting
 
-    ```bash
-    # TODO
-    ```
+1. "unable to load libcdsprpc.so"
 
-    </details>
+The HTP backend relies on the interface provided by `libcdsprpc.so` for rpcmem (dmabuf) operations. This dynamic link library is usually located in `/vendor/lib64`. If you encounter this problem, you can try adding `/vendor/lib64:/system/lib64` to the environment variable `LD_LIBRARY_PATH`.
 
-[^1]: [examples/perplexity/README.md](examples/perplexity/README.md)
-[^2]: [https://huggingface.co/docs/transformers/perplexity](https://huggingface.co/docs/transformers/perplexity)
+2. Inference gets stuck
 
-## [`llama-bench`](examples/llama-bench)
+The main reason for inference getting stuck is a fatal error in the operator library. Use the following method to inspect the logs generated on the NPU side:
 
-#### Benchmark the performance of the inference for various parameters.
++ Create a `.farf` file on the device
 
-- <details open>
-    <summary>Run default benchmark</summary>
+```sh
+echo 0x1f > $name_of_your_executable.farf
+```
 
-    ```bash
-    llama-bench -m model.gguf
+Replace `$name_of_your_executable` with the actual name of the executable file used. Example: If an error occurs when executing `llama-cli`, enable logging with the command `echo 0x1f > llama-cli.farf`.
 
-    # Output:
-    # | model               |       size |     params | backend    | threads |          test |                  t/s |
-    # | ------------------- | ---------: | ---------: | ---------- | ------: | ------------: | -------------------: |
-    # | qwen2 1.5B Q4_0     | 885.97 MiB |     1.54 B | Metal,BLAS |      16 |         pp512 |      5765.41 ± 20.55 |
-    # | qwen2 1.5B Q4_0     | 885.97 MiB |     1.54 B | Metal,BLAS |      16 |         tg128 |        197.71 ± 0.81 |
-    #
-    # build: 3e0ba0e60 (4229)
-    ```
++ Inspect adb log output from the host
 
-    </details>
+```sh
+adb logcat -s adsprpc
+```
 
-## [`llama-run`](examples/run)
+3. Garbage inference output
 
-#### A comprehensive example for running `llama.cpp` models. Useful for inferencing. Used with RamaLama [^3].
+One possibility is that the NPU operator library `libhtp_ops.so` is not loaded correctly, and it falls back to CPU computation, resulting in incorrect results. Please check the prompt output in stdout/stderr. Also make sure all required transformations for HMX and HVX are applied to the model weights.
 
-- <details>
-    <summary>Run a model with a specific prompt (by default it's pulled from Ollama registry)</summary>
+## Citation
 
-    ```bash
-    llama-run granite-code
-    ```
+If you find our work helpful, please cite us.
 
-    </details>
-
-[^3]: [RamaLama](https://github.com/containers/ramalama)
-
-## [`llama-simple`](examples/simple)
-
-#### A minimal example for implementing apps with `llama.cpp`. Useful for developers.
-
-- <details>
-    <summary>Basic text completion</summary>
-
-    ```bash
-    llama-simple -m model.gguf
-
-    # Hello my name is Kaitlyn and I am a 16 year old girl. I am a junior in high school and I am currently taking a class called "The Art of
-    ```
-
-    </details>
-
-
-## Contributing
-
-- Contributors can open PRs
-- Collaborators can push to branches in the `llama.cpp` repo and merge PRs into the `master` branch
-- Collaborators will be invited based on contributions
-- Any help with managing issues, PRs and projects is very appreciated!
-- See [good first issues](https://github.com/ggerganov/llama.cpp/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) for tasks suitable for first contributions
-- Read the [CONTRIBUTING.md](CONTRIBUTING.md) for more information
-- Make sure to read this: [Inference at the edge](https://github.com/ggerganov/llama.cpp/discussions/205)
-- A bit of backstory for those who are interested: [Changelog podcast](https://changelog.com/podcast/532)
-
-## Other documentation
-
-- [main (cli)](examples/main/README.md)
-- [server](examples/server/README.md)
-- [GBNF grammars](grammars/README.md)
-
-#### Development documentation
-
-- [How to build](docs/build.md)
-- [Running on Docker](docs/docker.md)
-- [Build on Android](docs/android.md)
-- [Performance troubleshooting](docs/development/token_generation_performance_tips.md)
-- [GGML tips & tricks](https://github.com/ggerganov/llama.cpp/wiki/GGML-Tips-&-Tricks)
-
-#### Seminal papers and background on the models
-
-If your issue is with model generation quality, then please at least scan the following links and papers to understand the limitations of LLaMA models. This is especially important when choosing an appropriate model size and appreciating both the significant and subtle differences between LLaMA models and ChatGPT:
-- LLaMA:
-    - [Introducing LLaMA: A foundational, 65-billion-parameter large language model](https://ai.facebook.com/blog/large-language-model-llama-meta-ai/)
-    - [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971)
-- GPT-3
-    - [Language Models are Few-Shot Learners](https://arxiv.org/abs/2005.14165)
-- GPT-3.5 / InstructGPT / ChatGPT:
-    - [Aligning language models to follow instructions](https://openai.com/research/instruction-following)
-    - [Training language models to follow instructions with human feedback](https://arxiv.org/abs/2203.02155)
-
-#### References
-
+```bibtex
+@article{hao2025scaling,
+  title={Scaling LLM Test-Time Compute with Mobile NPU on Smartphones},
+  author={Zixu Hao and Jianyu Wei and Tuowei Wang and Minxing Huang and Huiqiang Jiang and Shiqi Jiang and Ting Cao and Ju Ren},
+  journal={arXiv preprint arXiv:2509.23324},
+  year={2025}
+}
+```
