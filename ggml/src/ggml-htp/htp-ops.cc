@@ -297,7 +297,8 @@ int htp_ops_compute_op(struct ggml_compute_params * params, struct ggml_tensor *
     // std::atomic_store_explicit(d_ptr, 0, std::memory_order_release);
 
     // The memory order here is not very important
-    std::atomic_store(d_ptr, 0);
+    // std::atomic_store(d_ptr, 0);
+    std::atomic_store(d_ptr, static_cast<unsigned long>(0));
 
     msg_hdr->n_reqs         = n_reqs;
     msg_hdr->req_offsets[0] = message_header_size(msg_hdr);
@@ -362,7 +363,8 @@ int htp_ops_compute_op(struct ggml_compute_params * params, struct ggml_tensor *
     auto * v1_ptr = reinterpret_cast<volatile std::atomic<uint8_t> *>(&(msg_hdr->state.v[1]));
 
     // NOTE(hzx): make sure memory_order_release is used here to ensure all previous writes are valid
-    std::atomic_store_explicit(v0_ptr, 1, std::memory_order_release);
+    // std::atomic_store_explicit(v0_ptr, 1, std::memory_order_release);
+    std::atomic_store_explicit(v0_ptr, static_cast<unsigned char>(1), std::memory_order_release);
 
     // poll for response
     while (std::atomic_load_explicit(v1_ptr, std::memory_order_acquire) == 0) {
